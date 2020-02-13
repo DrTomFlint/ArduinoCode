@@ -63,7 +63,7 @@ float offset = 20;
 unsigned long color1;   // hue (HSV) 
 float s1 = 1.0;         // saturation (HSV)
 float bright = 0.1;
-int mode = 1;
+int mode = 2;
 int modei = 0;
 
 // add a moving sprite
@@ -426,13 +426,15 @@ void loop() {
   index = hueBase + findex;
   if(index>360) index-=360;  
   
-  // Set the fibers
+  // increment thru the modes
+  // start in mode2, then go to mode3
   if(modei++>2000){
     modei=0;
     mode++;
-    if(mode>3)mode=1;
+    if(mode>3)mode=3;
   }
-  
+
+  // mode 1 is just the 2 last leds
   if(mode==1){
     index2 = index + 0;
     if(index2>360)index2-=360;
@@ -448,7 +450,7 @@ void loop() {
     strip.setPixelColor(52,0);    
   }
 
-  // Set the inside lights
+  // mode 2 is just the inward pointing leds
   if(mode==2){
     color1 = getColor(index,1,bright);
   }else{
@@ -462,8 +464,9 @@ void loop() {
   strip.setPixelColor(50,color1);
   
   
-  // ABC row 1
+  // mode 3 is the 3 main hoops
   if(mode==3){
+  // ABC row 1
   led=0;
   index2 = index + led*offset;
   if(index2>360) index2 -= 360;
