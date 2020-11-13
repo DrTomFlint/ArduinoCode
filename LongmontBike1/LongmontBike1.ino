@@ -30,7 +30,7 @@
 #include <SPI.h>              // spi for LED string
 #include "SparkFunLIS3DH.h"   // 3d accelerometer
 #include "Wire.h"             // i2c for accel
-#define NUMLEDS 42            // Number of LEDs in strip
+#define NUMLEDS 43            // Number of LEDs in strip
 #define DELAY 2               // used at end of loop()
 #define TONETIME 200          // mSec for tone outputs
 
@@ -469,7 +469,7 @@ int xblue = 0;
     strip.setPixelColor(36,color1);
 
     // Water 
-    index2 = 230;   // Start with a blue
+    index2 = 240;   // Start with a blue
     color1 = getColor(index2,1,bright);
     strip.setPixelColor(14,color1);
     strip.setPixelColor(35,color1);
@@ -478,7 +478,7 @@ int xblue = 0;
     if(index2>360) index2 = index2 - 360;
     color1 = getColor(index2,1,bright);
     strip.setPixelColor(13,color1);
-    strip.setPixelColor(35,color1);
+    strip.setPixelColor(34,color1);
 
     index2 = index2 + 10;
     if(index2>360) index2 = index2 - 360;
@@ -489,20 +489,21 @@ int xblue = 0;
     // Fenders
     index2 = 0;
     color1 = getColor(index2,1,bright);
-    strip.setPixelColor(3,color1);
-    strip.setPixelColor(24,color1);
+    strip.setPixelColor(24,color1);         // front headlight loop
+    strip.setPixelColor(3,color1);          // front teardrop
+    strip.setPixelColor(42,color1);         // rear teardrop
 
     // Tail Lights
     index2 = 120;
     color1 = getColor(index2,1,bright);
-    strip.setPixelColor(1,color1);
+    strip.setPixelColor(1,color1);          // low numbers are right side
     strip.setPixelColor(22,color1);
 
     // Basket
     index2 = 105;
     color1 = getColor(index2,1,bright);
-    strip.setPixelColor(0,color1);
-    strip.setPixelColor(21,color1);
+    strip.setPixelColor(0,color1*0);        // loop to tail
+    strip.setPixelColor(21,color1);         // loop to projector
 
     // Halo
     index2 = 60;
