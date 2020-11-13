@@ -502,7 +502,7 @@ int xblue = 0;
     // Basket
     index2 = 105;
     color1 = getColor(index2,1,bright);
-    strip.setPixelColor(0,color1*0);        // loop to tail
+    strip.setPixelColor(0,color1);        // loop to tail
     strip.setPixelColor(21,color1);         // loop to projector
 
     // Halo
