@@ -50,6 +50,26 @@ typedef struct {
 rgb colorOut;
 hsv colorIn;
 
+int ledi = 0;
+int xled = 0;
+int xred = 0;
+int xgreen = 0;
+int xblue = 0;
+
+// spirals
+int shue = 0;               // spiral base hue
+unsigned long scolor[5];    // array of 5 colors
+int scount = 0;             // counter for each step
+int sstep = 0;              // 0 to 4, index of first fiber
+int speriod = 12;           // counts per step, low=fast high=slow
+int sbright = 1;            // independent brightness for the spiral
+int si = 0;                 // loop counter in spirals
+int smax = 120;             // hue limiter
+int smin = 25;              // hue limiter
+int sindex = smax;
+int sincr = -1;           
+
+
 // Colors
 float findex = 0;       // Keep track of hue with a float, limit loop delay
 float finc = 0.05;      // increment much less than 1.0
@@ -62,6 +82,7 @@ float offset = 20;
 unsigned long color1;   // hue (HSV) 
 float s1 = 1.0;         // saturation (HSV)
 float bright = 0.1;
+float bright2 = 0.1;
 
 #define NUMMODES 2  
 int mode = 0;
@@ -391,12 +412,6 @@ void setup() {
 
 void loop() {
 
-int ledi = 0;
-int xled = 0;
-int xred = 0;
-int xgreen = 0;
-int xblue = 0;
-
   // Read the 3d accelerometer on the SPI
   digitalWrite(4,HIGH);
   ax = a1.readFloatAccelX();
@@ -432,43 +447,77 @@ int xblue = 0;
     // TEST force brightness to full while working on fiber placement
     bright=1.0;
     
-    // Spirals
-    index2 = index;
-    color1 = getColor(index2,1,bright);
-    strip.setPixelColor(19,color1);
-    strip.setPixelColor(40,color1);
-    
-    // these 4 are the boat outline
-    strip.setPixelColor(11,color1);
-    strip.setPixelColor(32,color1);
-    strip.setPixelColor(10,color1);
-    strip.setPixelColor(31,color1);
-    
-    index2 = index2 + 20;
-    if(index2>360) index2 = index2 - 360;
-    color1 = getColor(index2,1,bright);
-    strip.setPixelColor(18,color1);
-    strip.setPixelColor(39,color1);
-    
-    index2 = index2 + 20;
-    if(index2>360) index2 = index2 - 360;
-    color1 = getColor(index2,1,bright);
-    strip.setPixelColor(17,color1);
-    strip.setPixelColor(38,color1);
 
-    index2 = index2 + 20;
-    if(index2>360) index2 = index2 - 360;
-    color1 = getColor(index2,1,bright);
-    strip.setPixelColor(16,color1);
-    strip.setPixelColor(37,color1);
+    // --- Outline of the Boat ------------------
+    color1 = getColor(index,1,bright);        // use base color
+    strip.setPixelColor(11,color1);           // around spiral to bow
+    strip.setPixelColor(32,color1);           // around spiral to rail
+    strip.setPixelColor(10,color1);           // stern keel and lamp right
+    strip.setPixelColor(31,color1);           // stern keel and lamp left
 
-    index2 = index2 + 20;
-    if(index2>360) index2 = index2 - 360;
-    color1 = getColor(index2,1,bright);
-    strip.setPixelColor(15,color1);
-    strip.setPixelColor(36,color1);
+    // --- Spirals ------------------------------- 
+       
+    // spiral index (base color) ramps between smin and smax
+    sbright = 1;      
+/*    
+    sindex = sindex + sincr;
+    if(sindex>=smax){
+      sincr = -1;
+    }
+    if(sindex<=smin){
+      sincr = 1;
+    }
+    index2=sindex;
+*/
+    index2=index;
+    bright2=sbright;    
+    for(si=0;si<5;si++){                      
+      scolor[si]=getColor(index2,1,bright2);
+      index2=index2+5;                   // offset in hue
+      if(index2>360) index2 = index2 - 360;
+      bright2 = 0.4 * bright2;                // dim later fibers
+    }
 
-    // Water 
+    // update the spiral count and step
+    scount = scount+1;
+    if(scount>speriod){
+      scount=0;
+      sstep = sstep - 1;
+      if(sstep<0) sstep = 4;
+    }
+
+    // assign the 5 colors to the 5 fibers based on step
+    // use si as a temp index since it should wrap around
+    si = sstep;
+    strip.setPixelColor(19,scolor[si]);
+//    strip.setPixelColor(40,scolor[si]);
+    strip.setPixelColor(36,scolor[si]);
+
+    si = si+1;
+    if(si>=5) si=0;        
+    strip.setPixelColor(18,scolor[si]);
+//    strip.setPixelColor(39,scolor[si]);
+    strip.setPixelColor(37,scolor[si]);
+    
+    si = si+1;
+    if(si>=5) si=0;        
+    strip.setPixelColor(17,scolor[si]);
+//    strip.setPixelColor(38,scolor[si]);
+    strip.setPixelColor(38,scolor[si]);
+
+    si = si+1;
+    if(si>=5) si=0;        
+    strip.setPixelColor(16,scolor[si]);
+//    strip.setPixelColor(37,scolor[si]);
+    strip.setPixelColor(39,scolor[si]);
+
+    si = si+1;
+    if(si>=5) si=0;        
+    strip.setPixelColor(15,scolor[si]);
+//    strip.setPixelColor(36,scolor[si]);
+    strip.setPixelColor(40,scolor[si]);
+
+    // ----- Water ------------------------- 
     index2 = 240;   // Start with a blue
     color1 = getColor(index2,1,bright);
     strip.setPixelColor(14,color1);
@@ -486,31 +535,31 @@ int xblue = 0;
     strip.setPixelColor(12,color1);
     strip.setPixelColor(33,color1);
 
-    // Fenders
+    // --- Fenders --------------------------
     index2 = 0;
     color1 = getColor(index2,1,bright);
     strip.setPixelColor(24,color1);         // front headlight loop
     strip.setPixelColor(3,color1);          // front teardrop
     strip.setPixelColor(42,color1);         // rear teardrop
 
-    // Tail Lights
+    // --- Tail Lights --------------------
     index2 = 120;
     color1 = getColor(index2,1,bright);
     strip.setPixelColor(1,color1);          // low numbers are right side
     strip.setPixelColor(22,color1);
 
-    // Basket
+    // --- Basket -------------------------
     index2 = 105;
     color1 = getColor(index2,1,bright);
-    strip.setPixelColor(0,color1);        // loop to tail
-    strip.setPixelColor(21,color1);         // loop to projector
+    strip.setPixelColor(0,color1);          // loop to tail
+    strip.setPixelColor(21,color1);         // loop to spotlight
 
-    // Halo
+    // --- Halo ------------------------------
     index2 = 60;
     color1 = getColor(index2,1,bright);
     strip.setPixelColor(20,color1);
 
-    // Wand
+    // --- Wand -------------------------------
     index2 = 180;
     color1 = getColor(index2,1,bright);
     strip.setPixelColor(41,color1);
@@ -562,7 +611,7 @@ int xblue = 0;
   }
 
   
-  delay(DELAY);                        // Variable delay controls apparent speed
+//  delay(DELAY);                        // Variable delay controls apparent speed
 
 }
 
