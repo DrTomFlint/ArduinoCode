@@ -62,7 +62,9 @@ unsigned long scolor[5];    // array of 5 colors
 int scount = 0;             // counter for each step
 int sstep = 0;              // 0 to 4, index of first fiber
 int speriod = 12;           // counts per step, low=fast high=slow
+int speriod_cmd = 12;       // spiral period command, prior rate limit
 int sbright = 1;            // independent brightness for the spiral
+int sbright_cmd=1;          // spiral brightness command, prior rate limit
 int si = 0;                 // loop counter in spirals
 int smax = 120;             // hue limiter
 int smin = 25;              // hue limiter
@@ -83,6 +85,7 @@ int increment2 = 1;     // hue offset in rainbow mode
 unsigned long color1;   // hue (HSV) 
 float s1 = 1.0;         // saturation (HSV)
 float bright = 0.1;
+float bright_cmd = 0.1;
 float bright2 = 0.1;
 
 #define MAXMODE 2  
@@ -401,6 +404,7 @@ void loop() {
   if(value<10) value = 0;    // also zero low volume
   envelope = envelopeFilter(value);   // IIR lowpass filter
 
+/*
   // Set brightness based on beat envelope
   bright = envelope*0.01;
   if(bright<envelope) bright +=0.00001;
@@ -411,28 +415,44 @@ void loop() {
   // use the accel to chose a base Hue
   // hueBase = getHue(ax,ay,az);
   
+  scolor[0]=getColor(120,1,sbright);
+  scolor[1]=getColor(105,1,sbright*0.7);
+  scolor[2]=getColor(60,1,sbright*0.5);
+  scolor[3]=getColor(0,1, sbright*0.4);
+  scolor[4]=getColor(250,1,sbright*0.25);
+  */
+
+    
   findex += finc;
   if(findex>360) findex -= 360;
   
   // index = hueBase + findex;
   index = findex;
   if(index>360) index-=360;  
+  
+  // level will control brightness and speed of the spiral
+  if(level==0) {bright_cmd=0; sbright_cmd=0; speriod_cmd=2000;}
+  if(level==1) {bright_cmd=0.1; sbright_cmd=0.9; speriod_cmd=24;}
+  if(level==2) {bright_cmd=0.4; sbright_cmd=1.0; speriod_cmd=12;}
+  if(level==3) {bright_cmd=1.0; sbright_cmd=1.0; speriod_cmd=6;}
 
-
+  if(bright<bright_cmd)bright += 0.001;   // range 0 to 1.0
+  if(bright>bright_cmd)bright -=0.001;
+  if(sbright<sbright_cmd)sbright +=0.001;
+  if(sbright>sbright_cmd)sbright -=0.001;
+  if(speriod<speriod_cmd)speriod++;       // 6 is fast, 24 is slow
+  if(speriod>speriod_cmd)speriod--;
+    
   // ***************** mode 0, Off *******************************************************
   if(mode==0){
     for(led=0;led++;led<NUMLEDS){
-      strip.setPixelColor(led,0);
+      color1 = getColor(0,1,0.0);        // use base color
+      strip.setPixelColor(led,color1);
     }
   }
 
   // ***************** mode 1, Rain Flow, circulate the hues, slightly vary over the fibers
   if(mode==1){
-
-    if(level==0) bright=0;
-    if(level==1) bright=0.1;
-    if(level==2) bright=0.4;
-    if(level==3) bright=1.0;
     
     // --- Outline of the Boat ------------------
     color1 = getColor(index,1,bright);        // use base color
@@ -442,45 +462,41 @@ void loop() {
     strip.setPixelColor(31,color1);           // stern keel and lamp left
 
     // --- Spirals ------------------------------- 
-    sbright = bright;
     index2=index;
     bright2=sbright;    
+    // select the 5 colors
     for(si=0;si<5;si++){                      
       scolor[si]=getColor(index2,1,bright2);
-      index2=index2+5;                   // offset in hue
+      index2=index2+5;                        // offset in hue
       if(index2>360) index2 = index2 - 360;
-      bright2 = 0.4 * bright2;                // dim later fibers
+      bright2 = 0.6 * bright2;                // dim later fibers
     }
-
-    // update the spiral count and step
+    // update the spiral count and step, rate limit changes in period
+    if(speriod<speriod_cmd) speriod++;
+    if(speriod>speriod_cmd) speriod--;
     scount = scount+1;
     if(scount>speriod){
       scount=0;
       sstep = sstep - 1;
       if(sstep<0) sstep = 4;
     }
-
     // assign the 5 colors to the 5 fibers based on step
     // use si as a temp index since it should wrap around
     si = sstep;
     strip.setPixelColor(19,scolor[si]);
     strip.setPixelColor(36,scolor[si]);
-
     si = si+1;
     if(si>=5) si=0;        
     strip.setPixelColor(18,scolor[si]);
     strip.setPixelColor(37,scolor[si]);
-    
     si = si+1;
     if(si>=5) si=0;        
     strip.setPixelColor(17,scolor[si]);
     strip.setPixelColor(38,scolor[si]);
-
     si = si+1;
     if(si>=5) si=0;        
     strip.setPixelColor(16,scolor[si]);
     strip.setPixelColor(39,scolor[si]);
-
     si = si+1;
     if(si>=5) si=0;        
     strip.setPixelColor(15,scolor[si]);
@@ -548,9 +564,6 @@ void loop() {
   // ******************  mode 2, Basic Ride, green fenders, red tail lights, spiral runs
   if(mode==2){
     
-    // TEST force brightness to full while working on fiber placement
-    bright=1.0;
-    
     // --- Outline of the Boat ------------------
     color1 = getColor(index,1,bright);        // use base color
     strip.setPixelColor(11,color1);           // around spiral to bow
@@ -558,11 +571,9 @@ void loop() {
     strip.setPixelColor(10,color1);           // stern keel and lamp right
     strip.setPixelColor(31,color1);           // stern keel and lamp left
 
-    // --- Spirals ------------------------------- 
-       
-    // spiral index (base color) ramps between smin and smax
-    sbright = 1;      
+    // --- Spirals -------------------------------        
 /*    
+    // spiral index (base color) ramps between smin and smax
     sindex = sindex + sincr;
     if(sindex>=smax){
       sincr = -1;
@@ -572,6 +583,7 @@ void loop() {
     }
     index2=sindex;
 */
+    // first color is base hue
     index2=index;
     bright2=sbright;    
     for(si=0;si<5;si++){                      
@@ -581,7 +593,9 @@ void loop() {
       bright2 = 0.4 * bright2;                // dim later fibers
     }
 
-    // update the spiral count and step
+    // update the spiral count and step, rate limit changes in period
+    if(speriod<speriod_cmd) speriod++;
+    if(speriod>speriod_cmd) speriod--;
     scount = scount+1;
     if(scount>speriod){
       scount=0;
@@ -593,31 +607,26 @@ void loop() {
     // use si as a temp index since it should wrap around
     si = sstep;
     strip.setPixelColor(19,scolor[si]);
-//    strip.setPixelColor(40,scolor[si]);
     strip.setPixelColor(36,scolor[si]);
 
     si = si+1;
     if(si>=5) si=0;        
     strip.setPixelColor(18,scolor[si]);
-//    strip.setPixelColor(39,scolor[si]);
     strip.setPixelColor(37,scolor[si]);
     
     si = si+1;
     if(si>=5) si=0;        
     strip.setPixelColor(17,scolor[si]);
-//    strip.setPixelColor(38,scolor[si]);
     strip.setPixelColor(38,scolor[si]);
 
     si = si+1;
     if(si>=5) si=0;        
     strip.setPixelColor(16,scolor[si]);
-//    strip.setPixelColor(37,scolor[si]);
     strip.setPixelColor(39,scolor[si]);
 
     si = si+1;
     if(si>=5) si=0;        
     strip.setPixelColor(15,scolor[si]);
-//    strip.setPixelColor(36,scolor[si]);
     strip.setPixelColor(40,scolor[si]);
 
     // ----- Water ------------------------- 
