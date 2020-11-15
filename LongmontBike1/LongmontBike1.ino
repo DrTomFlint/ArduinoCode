@@ -78,15 +78,24 @@ int led = 0;
 int index = 0;
 int index2 = 0;
 float offset = 20;
+int increment2 = 1;     // hue offset in rainbow mode
 
 unsigned long color1;   // hue (HSV) 
 float s1 = 1.0;         // saturation (HSV)
 float bright = 0.1;
 float bright2 = 0.1;
 
-#define NUMMODES 2  
-int mode = 0;
+#define MAXMODE 2  
+int mode = 1;
 int old_mode = -1;
+#define MAXLEVEL 3  
+int level = 1;
+int old_level = -1;
+#define MAXCOLOR 3  
+int color = 0;
+int old_color = -1;
+int buttons_in = 0;
+int old_buttons = -1;
 
 // Xbee
 int XbeeIn = 0;
@@ -94,7 +103,6 @@ int XbeeOut = 0;
 int XbeeCount = 0;
 
 // Accelerometer
-//LIS3DH a1( I2C_MODE, 0x19 );  // Use I2C and default sparkfun breakout address = 0x19
 LIS3DH a1( SPI_MODE, 10 );  // Use spi with pin10 as chip select
 float ax, ay, az;     // accelerometer readings
 float mx, my, mz;     // magnitude and limit to 0 to 1.0
@@ -116,6 +124,7 @@ int duty;
 
 //=================================================================================
 // rgb values are doubles on scale 0 to 1.0
+
 hsv rgb2hsv(rgb in)
 {
     hsv         out;
@@ -252,36 +261,6 @@ unsigned long getColor(float h, float s, float v){
 
 //================================================================================
 // This function takes floating point values from the accelerometer
-// and returns a 32 bit color code for the RGB values 
-// needed for the LED string: 0x00GGRRBB
-// This method does not ensure fully saturated colors
-unsigned long getColor2(float x, float y, float z){
-
-  #define CMULT (float)120;
-  #define COFF 10;
-  unsigned long temp;
-  
-  colorOut.r = abs(x)*CMULT+COFF;
-  if(colorOut.r<0)colorOut.r=0;
-  if(colorOut.r>255)colorOut.r=255;
-  colorOut.g = abs(y)*CMULT+COFF;
-  if(colorOut.g<0)colorOut.g=0;
-  if(colorOut.g>255)colorOut.g=255;
-  colorOut.b = abs(z)*CMULT+COFF;
-  if(colorOut.b<0)colorOut.b=0;
-  if(colorOut.b>255)colorOut.b=255;
-    
-  temp = colorOut.r;
-  temp = temp<<8;
-  temp = temp + colorOut.g;
-  temp = temp<<8;
-  temp = temp + colorOut.b;
-  
-  return(temp);
-}
-
-//================================================================================
-// This function takes floating point values from the accelerometer
 // and returns a floating point hue value on the 0 to 360 degree range
 unsigned long getHue(float x, float y, float z){
 
@@ -348,10 +327,6 @@ float beatFilter(float sample) {
     return yv[2];
 }
 
-
-//=================================================================================
-
-
 //=================================================================================
 
 void setup() {
@@ -369,10 +344,6 @@ void setup() {
   tone(8,1760,TONETIME);
   delay(TONETIME);
   
-//  delay(TONETIME);
-//  tone(8,110,TONETIME);
-//  delay(TONETIME);
-
   // LED strip
   digitalWrite(10,HIGH);
   strip.begin(); // Initialize pins for output
@@ -405,6 +376,10 @@ void setup() {
   cbi(ADCSRA,ADPS0);
   pinMode(9, OUTPUT);  // The pin with the LED
 
+  // Toggle menu switch on pins 4 and 7
+  pinMode(4,INPUT);
+  pinMode(7,INPUT);
+
 
 }
 
@@ -434,20 +409,148 @@ void loop() {
   if(bright>1) bright=1.0;  
 
   // use the accel to chose a base Hue
-  hueBase = getHue(ax,ay,az);
+  // hueBase = getHue(ax,ay,az);
   
   findex += finc;
   if(findex>360) findex -= 360;
   
-  index = hueBase + findex;
+  // index = hueBase + findex;
+  index = findex;
   if(index>360) index-=360;  
-  
-  // mode 0, sort out the fibers and label groups 
+
+
+  // ***************** mode 0, Off *******************************************************
   if(mode==0){
+    for(led=0;led++;led<NUMLEDS){
+      strip.setPixelColor(led,0);
+    }
+  }
+
+  // ***************** mode 1, Rain Flow, circulate the hues, slightly vary over the fibers
+  if(mode==1){
+
+    if(level==0) bright=0;
+    if(level==1) bright=0.1;
+    if(level==2) bright=0.4;
+    if(level==3) bright=1.0;
+    
+    // --- Outline of the Boat ------------------
+    color1 = getColor(index,1,bright);        // use base color
+    strip.setPixelColor(11,color1);           // around spiral to bow
+    strip.setPixelColor(32,color1);           // around spiral to rail
+    strip.setPixelColor(10,color1);           // stern keel and lamp right
+    strip.setPixelColor(31,color1);           // stern keel and lamp left
+
+    // --- Spirals ------------------------------- 
+    sbright = bright;
+    index2=index;
+    bright2=sbright;    
+    for(si=0;si<5;si++){                      
+      scolor[si]=getColor(index2,1,bright2);
+      index2=index2+5;                   // offset in hue
+      if(index2>360) index2 = index2 - 360;
+      bright2 = 0.4 * bright2;                // dim later fibers
+    }
+
+    // update the spiral count and step
+    scount = scount+1;
+    if(scount>speriod){
+      scount=0;
+      sstep = sstep - 1;
+      if(sstep<0) sstep = 4;
+    }
+
+    // assign the 5 colors to the 5 fibers based on step
+    // use si as a temp index since it should wrap around
+    si = sstep;
+    strip.setPixelColor(19,scolor[si]);
+    strip.setPixelColor(36,scolor[si]);
+
+    si = si+1;
+    if(si>=5) si=0;        
+    strip.setPixelColor(18,scolor[si]);
+    strip.setPixelColor(37,scolor[si]);
+    
+    si = si+1;
+    if(si>=5) si=0;        
+    strip.setPixelColor(17,scolor[si]);
+    strip.setPixelColor(38,scolor[si]);
+
+    si = si+1;
+    if(si>=5) si=0;        
+    strip.setPixelColor(16,scolor[si]);
+    strip.setPixelColor(39,scolor[si]);
+
+    si = si+1;
+    if(si>=5) si=0;        
+    strip.setPixelColor(15,scolor[si]);
+    strip.setPixelColor(40,scolor[si]);
+
+    // start from base hue
+    index2=index;
+
+    index2+=increment2;
+    if(index2>360) index2-=360;
+    color1 = getColor(index2,1,bright);
+    
+    // ----- Water ------------------------- 
+    strip.setPixelColor(14,color1);
+    strip.setPixelColor(35,color1);
+
+    index2+=increment2;
+    if(index2>360) index2-=360;
+    color1 = getColor(index2,1,bright);
+    strip.setPixelColor(13,color1);
+    strip.setPixelColor(34,color1);
+
+    index2+=increment2;
+    if(index2>360) index2-=360;
+    color1 = getColor(index2,1,bright);
+    strip.setPixelColor(12,color1);
+    strip.setPixelColor(33,color1);
+
+    // --- Fenders --------------------------
+    index2+=increment2;
+    if(index2>360) index2-=360;
+    color1 = getColor(index2,1,bright);
+    strip.setPixelColor(24,color1);         // front headlight loop
+    strip.setPixelColor(3,color1);          // front teardrop
+    strip.setPixelColor(42,color1);         // rear teardrop
+
+    // --- Tail Lights --------------------
+    index2+=increment2;
+    if(index2>360) index2-=360;
+    color1 = getColor(index2,1,bright);
+    strip.setPixelColor(1,color1);          // low numbers are right side
+    strip.setPixelColor(22,color1);
+
+    // --- Basket -------------------------
+    index2+=increment2;
+    if(index2>360) index2-=360;
+    color1 = getColor(index2,1,bright);
+    strip.setPixelColor(0,color1);          // loop to tail
+    strip.setPixelColor(21,color1);         // loop to spotlight
+
+    // --- Halo ------------------------------
+    index2+=increment2;
+    if(index2>360) index2-=360;
+    color1 = getColor(index2,1,bright);
+    strip.setPixelColor(20,color1);
+
+    // --- Wand -------------------------------
+    index2+=increment2;
+    if(index2>360) index2-=360;
+    color1 = getColor(index2,1,bright);
+    strip.setPixelColor(41,color1);
+    
+  }
+
+  // ******************  mode 2, Basic Ride, green fenders, red tail lights, spiral runs
+  if(mode==2){
+    
     // TEST force brightness to full while working on fiber placement
     bright=1.0;
     
-
     // --- Outline of the Boat ------------------
     color1 = getColor(index,1,bright);        // use base color
     strip.setPixelColor(11,color1);           // around spiral to bow
@@ -564,7 +667,7 @@ void loop() {
     color1 = getColor(index2,1,bright);
     strip.setPixelColor(41,color1);
 
-}
+}   // ************** end of modes ********************************
   
   
   // Update the strip
@@ -572,6 +675,25 @@ void loop() {
   strip.show();             // Refresh strip
   digitalWrite(10,LOW);     // De-select LEDS, selects accelerometer
 
+  
+  // Read 4 toggle switch input, normally high, pulled low when toggle is active
+  buttons_in = 0;
+  if(digitalRead(4)==HIGH) buttons_in +=1;
+  if(digitalRead(7)==HIGH) buttons_in +=2;
+  if(buttons_in != old_buttons){
+    // got a new button press
+    old_buttons = buttons_in;
+    if(buttons_in == 1){
+      mode +=1;
+      if(mode>MAXMODE) mode=0;
+    }
+    if(buttons_in == 2){
+      level +=1;
+      if(level>MAXLEVEL) level=0;
+    }
+  }
+
+    
   // Xbee comms
   if(Serial.available()>0){
     XbeeIn = Serial.read();
@@ -592,12 +714,6 @@ void loop() {
       delay(TONETIME);
     }
 
-    // select command
-    if(XbeeIn == 3){      
-      delay(10);
-      xled = Serial.read();   
-    }   
-
     // color command
     if(XbeeIn == 4){      
       delay(10);
@@ -608,6 +724,14 @@ void loop() {
       xblue = Serial.read();      
     }  
     
+    // mode set command
+    if(XbeeIn == 5){      
+      delay(10);
+      mode = Serial.read();   
+      if(mode<0)mode=0;
+      if(mode>MAXMODE)mode=MAXMODE;
+    }   
+
   }
 
   
