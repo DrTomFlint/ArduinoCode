@@ -13,7 +13,7 @@
  *   can reset chip and start programming sequence.  
  *  Piezo for tone on pin 8.
  *  Max4466 Mic Amp on A0 analog input for sound.
- *  Analog output on pin 9 to a regular LED for beat detection.
+ *  
  *  2 menu switch inputs on pins 4 and 7.
  *  
  *  LED Layout: 2 sets 0 to 20, and 21 to 41, plus one extra at 42.
@@ -61,10 +61,10 @@ int shue = 0;               // spiral base hue
 unsigned long scolor[5];    // array of 5 colors
 int scount = 0;             // counter for each step
 int sstep = 0;              // 0 to 4, index of first fiber
-int speriod = 12;           // counts per step, low=fast high=slow
-int speriod_cmd = 12;       // spiral period command, prior rate limit
-int sbright = 1;            // independent brightness for the spiral
-int sbright_cmd=1;          // spiral brightness command, prior rate limit
+int speriod = 24;           // counts per step, low=fast high=slow
+int speriod_cmd = 24;       // spiral period command, prior rate limit
+float sbright = 0;            // independent brightness for the spiral
+float sbright_cmd=0;          // spiral brightness command, prior rate limit
 int si = 0;                 // loop counter in spirals
 int smax = 120;             // hue limiter
 int smin = 25;              // hue limiter
@@ -73,7 +73,10 @@ int sincr = -1;
 
 
 // Colors
-float findex = 0;       // Keep track of hue with a float, limit loop delay
+float bright = 0.0;      
+float bright_cmd = 0.0; 
+float bright2 = 0.0;
+float findex = 120;       // Keep track of hue with a float, limit loop delay
 float finc = 0.05;      // increment much less than 1.0
 float hueBase = 0;
 int led = 0;
@@ -84,21 +87,18 @@ int increment2 = 1;     // hue offset in rainbow mode
 
 unsigned long color1;   // hue (HSV) 
 float s1 = 1.0;         // saturation (HSV)
-float bright = 0.1;
-float bright_cmd = 0.1;
-float bright2 = 0.1;
 
 #define MAXMODE 2  
-int mode = 1;
-int old_mode = -1;
+int mode = 1;           
+int old_mode = 1;
 #define MAXLEVEL 3  
 int level = 1;
-int old_level = -1;
+int old_level = 1;
 #define MAXCOLOR 3  
 int color = 0;
 int old_color = -1;
-int buttons_in = 0;
-int old_buttons = -1;
+int buttons_in = 3;
+int old_buttons = 3;
 
 // Xbee
 int XbeeIn = 0;
@@ -340,12 +340,14 @@ void setup() {
   digitalWrite(10,LOW);
 
   // Startup tone
+  digitalWrite(10,HIGH);
   tone(8,440,TONETIME);
   delay(TONETIME);
   tone(8,880,TONETIME);
   delay(TONETIME);
   tone(8,1760,TONETIME);
   delay(TONETIME);
+  digitalWrite(10,LOW);
   
   // LED strip
   digitalWrite(10,HIGH);
@@ -403,6 +405,47 @@ void loop() {
   if(value<0)value=-value;    // absolute value
   if(value<10) value = 0;    // also zero low volume
   envelope = envelopeFilter(value);   // IIR lowpass filter
+    
+  // Xbee comms
+  if(Serial.available()>0){
+    XbeeIn = Serial.read();
+    XbeeOut = XbeeIn + 1;
+    
+    //Serial.print(XbeeOut);
+
+    if(XbeeIn == 1){
+      tone(8,440,TONETIME);
+      delay(TONETIME);
+    }
+    if(XbeeIn == 2){
+      tone(8,880,TONETIME);
+      delay(TONETIME);
+    }
+    if(XbeeIn == 3){
+      tone(8,1760,TONETIME);
+      delay(TONETIME);
+    }
+
+    // color command
+    if(XbeeIn == 4){      
+      delay(10);
+      xred = Serial.read();      
+      delay(10);
+      xgreen = Serial.read();      
+      delay(10);
+      xblue = Serial.read();      
+    }  
+    
+    // mode set command
+    if(XbeeIn == 5){      
+      delay(10);
+      mode = Serial.read();   
+      if(mode<0)mode=0;
+      if(mode>MAXMODE)mode=MAXMODE;
+    }   
+
+  }
+
 
 /*
   // Set brightness based on beat envelope
@@ -422,36 +465,66 @@ void loop() {
   scolor[4]=getColor(250,1,sbright*0.25);
   */
 
-    
-  findex += finc;
-  if(findex>360) findex -= 360;
-  
-  // index = hueBase + findex;
-  index = findex;
-  if(index>360) index-=360;  
-  
-  // level will control brightness and speed of the spiral
-  if(level==0) {bright_cmd=0; sbright_cmd=0; speriod_cmd=2000;}
-  if(level==1) {bright_cmd=0.1; sbright_cmd=0.9; speriod_cmd=24;}
-  if(level==2) {bright_cmd=0.4; sbright_cmd=1.0; speriod_cmd=12;}
-  if(level==3) {bright_cmd=1.0; sbright_cmd=1.0; speriod_cmd=6;}
+  // Read 4 toggle switch input, normally high, pulled low when toggle is active
+  buttons_in = 0;
+  if(digitalRead(4)==HIGH) buttons_in +=1;
+  if(digitalRead(7)==HIGH) buttons_in +=2;
+  if(buttons_in != old_buttons){
+    // got a new button press
+    old_buttons = buttons_in;
 
-  if(bright<bright_cmd)bright += 0.001;   // range 0 to 1.0
-  if(bright>bright_cmd)bright -=0.001;
-  if(sbright<sbright_cmd)sbright +=0.001;
-  if(sbright>sbright_cmd)sbright -=0.001;
-  if(speriod<speriod_cmd)speriod++;       // 6 is fast, 24 is slow
-  if(speriod>speriod_cmd)speriod--;
-    
-  // ***************** mode 0, Off *******************************************************
-  if(mode==0){
-    for(led=0;led++;led<NUMLEDS){
-      color1 = getColor(0,1,0.0);        // use base color
-      strip.setPixelColor(led,color1);
+    if(buttons_in == 1){
+      mode +=1;
+      if(mode>MAXMODE) mode=0;
+    }
+    if(buttons_in == 2){
+      level +=1;
+      if(level>MAXLEVEL) level=0;
     }
   }
 
-  // ***************** mode 1, Rain Flow, circulate the hues, slightly vary over the fibers
+
+  // ******** mode ALL *******************************************************    
+  if(mode >= 0){
+    // update the hue index, first as float then as an int
+    findex -= finc;
+    if(findex>360) findex -= 360;
+    if(findex<0) findex += 360;
+    index = findex;
+    
+    // level will control brightness and speed of the spiral
+    if(level==0) {bright_cmd=0; sbright_cmd=0; speriod_cmd=48;}
+    if(level==1) {bright_cmd=0.1; sbright_cmd=0.5; speriod_cmd=24;}
+    if(level==2) {bright_cmd=0.4; sbright_cmd=0.75; speriod_cmd=12;}
+    if(level==3) {bright_cmd=1.0; sbright_cmd=1.0; speriod_cmd=6;}
+  
+    if(bright<bright_cmd)bright += 0.001;   // range 0 to 1.0
+    if(bright>bright_cmd)bright -=0.001;
+    
+    if(sbright<sbright_cmd)sbright +=0.001;
+    if(sbright>sbright_cmd)sbright -=0.001;
+    
+    if(speriod<speriod_cmd)speriod++;       // 6 is fast, 24 is slow
+    if(speriod>speriod_cmd)speriod--;
+  }
+
+  // ***************** mode -1, Startup *******************************************************
+  if(mode==-1){
+    
+    color1 = getColor(index,1,bright);        // use base color
+    for(led=0;led<NUMLEDS;led++){
+      strip.setPixelColor(led,(unsigned long)0);
+    }
+  }
+        
+  // ***************** mode 0, Off *******************************************************
+  if(mode==0){
+    for(led=0;led<NUMLEDS;led++){
+      strip.setPixelColor(led,(unsigned long)0);
+    }
+  }
+
+  // ***************** mode 1, Rainbow Flow, circulate the hues, slightly vary over the fibers
   if(mode==1){
     
     // --- Outline of the Boat ------------------
@@ -511,7 +584,8 @@ void loop() {
     
     // ----- Water ------------------------- 
     strip.setPixelColor(14,color1);
-    strip.setPixelColor(35,color1);
+    strip.setPixelColor(35,color1);int startcount = 0;
+
 
     index2+=increment2;
     if(index2>360) index2-=360;
@@ -676,6 +750,8 @@ void loop() {
     color1 = getColor(index2,1,bright);
     strip.setPixelColor(41,color1);
 
+
+
 }   // ************** end of modes ********************************
   
   
@@ -683,68 +759,6 @@ void loop() {
   digitalWrite(10,HIGH);    // SPI select for LEDs
   strip.show();             // Refresh strip
   digitalWrite(10,LOW);     // De-select LEDS, selects accelerometer
-
-  
-  // Read 4 toggle switch input, normally high, pulled low when toggle is active
-  buttons_in = 0;
-  if(digitalRead(4)==HIGH) buttons_in +=1;
-  if(digitalRead(7)==HIGH) buttons_in +=2;
-  if(buttons_in != old_buttons){
-    // got a new button press
-    old_buttons = buttons_in;
-    if(buttons_in == 1){
-      mode +=1;
-      if(mode>MAXMODE) mode=0;
-    }
-    if(buttons_in == 2){
-      level +=1;
-      if(level>MAXLEVEL) level=0;
-    }
-  }
-
-    
-  // Xbee comms
-  if(Serial.available()>0){
-    XbeeIn = Serial.read();
-    XbeeOut = XbeeIn + 1;
-    
-    //Serial.print(XbeeOut);
-
-    if(XbeeIn == 1){
-      tone(8,440,TONETIME);
-      delay(TONETIME);
-    }
-    if(XbeeIn == 2){
-      tone(8,880,TONETIME);
-      delay(TONETIME);
-    }
-    if(XbeeIn == 3){
-      tone(8,1760,TONETIME);
-      delay(TONETIME);
-    }
-
-    // color command
-    if(XbeeIn == 4){      
-      delay(10);
-      xred = Serial.read();      
-      delay(10);
-      xgreen = Serial.read();      
-      delay(10);
-      xblue = Serial.read();      
-    }  
-    
-    // mode set command
-    if(XbeeIn == 5){      
-      delay(10);
-      mode = Serial.read();   
-      if(mode<0)mode=0;
-      if(mode>MAXMODE)mode=MAXMODE;
-    }   
-
-  }
-
-  
-//  delay(DELAY);                        // Variable delay controls apparent speed
 
 }
 
