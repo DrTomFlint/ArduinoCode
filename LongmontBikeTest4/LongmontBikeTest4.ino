@@ -33,7 +33,7 @@
 #include "SparkFunLIS3DH.h"   // 3d accelerometer
 #include "Wire.h"             // i2c for accel
 //#define NUMLEDS 7            // Number of LEDs in strip
-#define NUMLEDS 250            // Number of LEDs in strip
+#define NUMLEDS 240            // Number of LEDs in strip
 #define TONETIME 200          // mSec for tone outputs
 
 Adafruit_DotStar strip = Adafruit_DotStar(NUMLEDS, DOTSTAR_BRG);
@@ -60,18 +60,23 @@ float bright2 = 0.0;
 unsigned int shift = 0;
 
 float findex = 120;       // Keep track of hue with a float, limit loop delay
-float finc = 0.2;      // increment much less than 1.0
+//float finc = 0.2;      // increment much less than 1.0
+float finc = 1.0;      // increment much less than 1.0
 float hueBase = 0;
 int led = 0;
-int index = 0;
-int index2 = 0;
+float index = 0;
+float index2 = 0;
 
-#define NUMHUES 7    //   red    ora    yel  grn   cyan   indigo  violet   repeat red 
-double Hue[NUMHUES+1] = { 120,   115,   90,  4,    340,   260,    210,      120 };
-double HueDelta = 5;
+//#define NUMHUES 7    //   red    ora    yel  grn   cyan   indigo  violet   repeat red 
+//float Hue[NUMHUES+1] = { 120,   115,   90,  4,    340,   260,    210,      120 };
+#define NUMHUES 6    //   red  yel  grn   cyan   indigo  violet   repeat red 
+float Hue[NUMHUES+1] = { 120,  60,  0,    300,   240,    180,      120 };
+float HueDelta = 5;
 
-#define NUMSHADES 20
-unsigned long colorA[NUMHUES * NUMSHADES];
+#define NUMSHADES 20   
+#define NUMCOLORS (NUMHUES*NUMSHADES)
+unsigned long colorA[NUMCOLORS+2];
+
 int index3 = 0;   // indices 3,4 for new color methods
 int index4 = 0;
 int delay2 = 0;
@@ -271,6 +276,33 @@ unsigned long getColor2(float h, float s, float v){
 }
 
 //=================================================================================
+// This function takes floating point values for 
+// hue = h range 0 to 360
+// saturation = s range 0 to 1.0
+// value = v range 0 to 1.0
+// and returns a 32 bit color code for the RGB values 
+// needed for the LED string: 0x00GGRRBB
+// Use the Adafruit DotStar libraries as much as possible
+
+unsigned long getColor3(float h, float s, float v){
+  
+  unsigned long color1;
+  unsigned long color2;
+  uint16_t hue;
+  uint8_t sat;
+  uint8_t val;
+
+  hue = floor(h*65535.0/360.0);
+  sat = floor(s*255);
+  val = floor(v*255);
+  
+  color1= strip.ColorHSV(hue,sat,val);
+  color2 = strip.gamma32(color1);
+
+  return(color2);
+}
+
+//=================================================================================
 // Scale a color that is already in the unsigned long format by a floating point 
 // value to achieve dimming from a full brightness reference
 unsigned long scaleColor(unsigned long color, float bright){
@@ -286,7 +318,7 @@ unsigned long scaleColor(unsigned long color, float bright){
   red=(color & 0x00FF0000)>>16;
 
   // compensation for non-linear output
-  if(bright<0){
+  if(bright<0.003){
     bright=0;
   }else{
     bright = bright*bright+0.001;
@@ -393,34 +425,38 @@ void setup() {
   int hi; // hue index
   int ci; // color index
   int di; // delta index
-  double base;
-  double delta;
+  float base;
+  float delta;
   ci=0;
+    
   for(hi=0;hi<NUMHUES;hi++){          // loop over the hues
     base = Hue[hi];
+    index2=base;    // TEST
     delta = Hue[hi]-Hue[hi+1];
     if(delta<0) delta+=360;
-    delta = delta / NUMSHADES;
+    delta = delta / (float)NUMSHADES;
     for(di=0;di<NUMSHADES;di++) {       // generate shades of each hue
       index2 = base - delta*di;
-      if(index2>360)index2-=360;
-      if(index2<0)index2+=360;
-      colorA[ci]=getColor(index2,1,1);  // full brightness
-      ci++;
+      while(index2>360)index2-=360;
+      while(index2<0)index2+=360;
+      colorA[hi*NUMSHADES+di]=getColor2(index2,1,1);  // full brightness, use RGB low-level compensation
     }
   }
+  
 }
 
 //=================================================================================
 
 void loop() {
 
+  digitalWrite(10,LOW);    // SPI select for LEDs    TEST
   // Read the 3d accelerometer on the SPI
   digitalWrite(4,HIGH);
   ax = a1.readFloatAccelX();
   ay = a1.readFloatAccelY();
   az = a1.readFloatAccelZ();
   digitalWrite(4,LOW);
+  digitalWrite(10,HIGH);    // SPI select for LEDs    TEST
 
   // Xbee comms
   if(Serial.available()>0){
@@ -493,51 +529,50 @@ void loop() {
   if(mode==0){
     
     for(led=0;led<NUMLEDS;led++){
-      index2=led*1+index;
-      if(index2>360)index2-=360;
-      if(index2<0)index2+=360;
-      color1 = getColor(index2,1,bright);        // use base color
+      index2=index-led*1.5;
+      while(index2>360)index2-=360;
+      while(index2<0)index2+=360;
+//      color1 = getColor(index2,1,bright);        // use base color
+      color1 = getColor(index2,1,bright*0.4);        // use base color
       strip.setPixelColor(led,color1);
     }
-  }
+
+    color1 = getColor(120,1,bright);        // mode marker
+    strip.setPixelColor(0,color1);
+}
   // ***************** mode 1, flow *******************************************************
   if(mode==1){
     
     for(led=0;led<NUMLEDS;led++){
-      index2=led*1+index;
-      if(index2>360)index2-=360;
-      if(index2<0)index2+=360;
-      color1 = getColor2(index2,1,bright);        // use base color
+      index2=index-led*1.5;
+      while(index2>360)index2-=360;
+      while(index2<0)index2+=360;
+//      color1 = getColor3(index2,1,bright);        // use base color
+      color1 = scaleColor(getColor3(index2,1,1.0),bright);        // use base color
       strip.setPixelColor(led,color1);
     }
+    color1 = getColor(0,1,bright);        // mode marker
+    strip.setPixelColor(0,color1);
   }
         
-  // ***************** mode -1, rainbow flow *******************************************************
-  if(mode==-1){
+  // ***************** mode 2, LUT flow **********************************************
+  if(mode==2){
     strip.clear();                       
 
-    // only change the index slowly
-    if(delay2<200){
-      delay2++;
-    }else{
-      delay2=0;
-      if(index3<NUMHUES*NUMSHADES){
-        index3++;
-      }else{
-        index3=0;
-      }
-    }
-      
-    // update the strip all passes
+    index3=index;
+              
+    // update the strip
     for(led=0;led<NUMLEDS;led++){
-      index4 = index3+led;    
-      if(index4>=NUMHUES*NUMSHADES) index4 -= NUMHUES*NUMSHADES;
-//      strip.setPixelColor(led,colorA[index4]);
+      index4 = index3-(led*1.5)*(float)NUMCOLORS/360;    
+      while(index4>=NUMCOLORS) index4 -= NUMCOLORS;
       strip.setPixelColor(led, scaleColor(colorA[index4],bright) );
     }
+
+    color1 = getColor(240,1,bright);        // mode marker
+    strip.setPixelColor(0,color1);
   }
 
-  // ***************** mode 1, Show 7 Colors **************************
+  // ***************** mode x, Show 7 Colors **************************
   if(mode==-3){
     strip.clear();
 
@@ -546,8 +581,8 @@ void loop() {
     }
   }
 
-  // ***************** mode 2, Scaled 7 Colors *************************
-  if(mode==2){
+  // ***************** mode x, Scaled 7 Colors *************************
+  if(mode==-5){
     strip.clear();
 
     for(led=0;led<NUMLEDS;led++){
@@ -583,9 +618,9 @@ void loop() {
   // ************** end of modes ********************************
   
   // Update the strip
-  digitalWrite(10,HIGH);    // SPI select for LEDs
+//  digitalWrite(10,HIGH);    // SPI select for LEDs  
   strip.show();             // Refresh strip
-  digitalWrite(10,LOW);     // De-select LEDS, selects accelerometer
+//  digitalWrite(10,LOW);     // De-select LEDS, selects accelerometer
 
 }
 
