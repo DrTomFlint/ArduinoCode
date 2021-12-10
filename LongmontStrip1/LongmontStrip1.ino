@@ -1,6 +1,6 @@
 /* =============================================================
- * Longmont Bike 4
- * Run this on the breadboard, 7 leds, Xbee #2 
+ * Longmont Strip1
+ * Run this on the breadboard 5V Arduino, Xbee #11
  * based on BB7 snow globe code
  *  
  *  LED string on SPI port pins 11 and 13 CLK and MOSI, pin 10 SPISEL 
@@ -25,6 +25,7 @@
  *  Adapt for Globe BB-6a, 2 April 2019
  *  From BB7 hack a new Bike Lights version, 13 Nov 2020
  *  Add daisy-chain dotstar on end of fiber box, 22 Nov 2020
+ *  Alter for long strip tests, 21 Dec 2020
  *  
  ===============================================================*/
  
@@ -83,11 +84,11 @@ int delay2 = 0;
 
 //#define MAXMODE 10  
 #define MAXMODE 1  
-int mode = 1 ;           
-int old_mode = 0;
+int mode = 0 ;           
+int old_mode = 1;
 
 #define MAXLEVEL 9  
-int level = 5;
+int level = 6;
 int old_level = 0;
 
 int buttons_in = 3;
@@ -508,35 +509,34 @@ void loop() {
     
     // level will control brightness and speed of the spiral
     if(level==0) {bright_cmd=0; shift=9; finc=0;}
-    if(level==1) {bright_cmd=0.075; shift=8; finc=0.5;}
-    if(level==2) {bright_cmd=0.1; shift=7; finc=1.0;}
-    if(level==3) {bright_cmd=0.15; shift=6; finc=2.0;}
-    if(level==4) {bright_cmd=0.2; shift=5; finc=3.0;}
-    if(level==5) {bright_cmd=0.3; shift=4; finc=4.0;}
-    if(level==6) {bright_cmd=0.4; shift=3; finc=5.0;}
-    if(level==7) {bright_cmd=0.6; shift=2; finc=6.0;}
-    if(level==8) {bright_cmd=0.8; shift=1; finc=8.0;}
-    if(level==9) {bright_cmd=1.0; shift=0; finc=12.0;}
+    if(level==1) {bright_cmd=0.075; shift=8; finc=0.1;}
+    if(level==2) {bright_cmd=0.100; shift=7; finc=0.2;}
+    if(level==3) {bright_cmd=0.125; shift=6; finc=0.3;}
+    if(level==4) {bright_cmd=0.15; shift=5; finc=0.4;}
+    if(level==5) {bright_cmd=0.2; shift=4; finc=0.5;}
+    if(level==6) {bright_cmd=0.3; shift=3; finc=0.6;}
+    if(level==7) {bright_cmd=0.5; shift=2; finc=0.7;}
+    if(level==8) {bright_cmd=0.7; shift=1; finc=1.0;}
+    if(level==9) {bright_cmd=1.0; shift=0; finc=3.0;}
   
 //    if(bright<bright_cmd)bright += 0.0005;   // range 0 to 1.0
 //    if(bright>bright_cmd)bright -=0.0005;
     bright=bright_cmd;      // TEST don't ramp      
   }
 
-  // ***************** mode 0, flow *******************************************************
+  // ***************** mode 0, all RED for night light *******************************************************
   if(mode==0){
     
     for(led=0;led<NUMLEDS;led++){
       index2=index-led*1.5;
       while(index2>360)index2-=360;
       while(index2<0)index2+=360;
-//      color1 = getColor(index2,1,bright);        // use base color
-      color1 = getColor(index2,1,bright*0.4);        // use base color
+      color1 = getColor(120,1,bright);        // use base color
       strip.setPixelColor(led,color1);
     }
 
-    color1 = getColor(120,1,0.1);        // mode marker
-    strip.setPixelColor(0,color1);
+//    color1 = getColor(120,1,0.1);        // mode marker
+//    strip.setPixelColor(0,color1);
 }
   // ***************** mode 1, flow *******************************************************
   if(mode==1){
@@ -545,7 +545,6 @@ void loop() {
       index2=index-led*1.5;
       while(index2>360)index2-=360;
       while(index2<0)index2+=360;
-//      color1 = getColor3(index2,1,bright);        // use base color
       color1 = scaleColor(getColor3(index2,1,1.0),bright);        // use base color
       strip.setPixelColor(led,color1);
     }
