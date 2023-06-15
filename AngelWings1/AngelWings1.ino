@@ -35,7 +35,7 @@
 #include <SPI.h>              // spi for LED string
 #include "SparkFunLIS3DH.h"   // 3d accelerometer
 #include "Wire.h"             // i2c for accel
-#define NUMLEDS 16            // Number of LEDs in strip
+#define NUMLEDS 17            // Number of LEDs in strip
 #define TONETIME 200          // mSec for tone outputs
 
 Adafruit_DotStar strip = Adafruit_DotStar(NUMLEDS, DOTSTAR_BRG);
@@ -69,22 +69,12 @@ int led = 0;
 float index = 0;
 float index2 = 0;
 
-//#define NUMHUES 7    //   red    ora    yel  grn   cyan   indigo  violet   repeat red 
-//float Hue[NUMHUES+1] = { 120,   115,   90,  4,    340,   260,    210,      120 };
-#define NUMHUES 6    //   red  yel  grn   cyan   indigo  violet   repeat red 
-float Hue[NUMHUES+1] = { 120,  60,  0,    300,   240,    180,      120 };
-float HueDelta = 5;
-
-#define NUMSHADES 20   
-#define NUMCOLORS (NUMHUES*NUMSHADES)
-unsigned long colorA[NUMCOLORS+2];
 
 int index3 = 0;   // indices 3,4 for new color methods
 int index4 = 0;
 int delay2 = 0;
 
-//#define MAXMODE 10  
-#define MAXMODE 1  
+#define MAXMODE 17  
 int mode = 0 ;           
 int old_mode = 1;
 
@@ -423,27 +413,6 @@ void setup() {
   pinMode(4,INPUT);
   pinMode(7,INPUT);
 
-  // setup colors
-  int hi; // hue index
-  int ci; // color index
-  int di; // delta index
-  float base;
-  float delta;
-  ci=0;
-    
-  for(hi=0;hi<NUMHUES;hi++){          // loop over the hues
-    base = Hue[hi];
-    index2=base;    // TEST
-    delta = Hue[hi]-Hue[hi+1];
-    if(delta<0) delta+=360;
-    delta = delta / (float)NUMSHADES;
-    for(di=0;di<NUMSHADES;di++) {       // generate shades of each hue
-      index2 = base - delta*di;
-      while(index2>360)index2-=360;
-      while(index2<0)index2+=360;
-      colorA[hi*NUMSHADES+di]=getColor2(index2,1,1);  // full brightness, use RGB low-level compensation
-    }
-  }
   
 }
 
@@ -503,25 +472,24 @@ void loop() {
   // ******** mode ALL *******************************************************    
   if(mode >= 0){
     // update the hue index, first as float then as an int
-    findex += finc;
+    findex -= finc;
     if(findex>360) findex -= 360;
     if(findex<0) findex += 360;
     index = findex;
     
     // level will control brightness and speed of the spiral
-    if(level==0) {bright_cmd=0; shift=9; finc=0;}
-    if(level==1) {bright_cmd=0.075; shift=8; finc=0.1;}
-    if(level==2) {bright_cmd=0.100; shift=7; finc=0.2;}
-    if(level==3) {bright_cmd=0.125; shift=6; finc=0.3;}
-    if(level==4) {bright_cmd=0.15; shift=5; finc=0.4;}
-    if(level==5) {bright_cmd=0.2; shift=4; finc=0.5;}
-    if(level==6) {bright_cmd=0.3; shift=3; finc=0.6;}
-    if(level==7) {bright_cmd=0.5; shift=2; finc=0.7;}
-    if(level==8) {bright_cmd=0.7; shift=1; finc=1.0;}
-    if(level==9) {bright_cmd=1.0; shift=0; finc=3.0;}
-  
-//    if(bright<bright_cmd)bright += 0.0005;   // range 0 to 1.0
-//    if(bright>bright_cmd)bright -=0.0005;
+    if(level==0) {bright_cmd=0; finc=0;}
+    if(level==1) {bright_cmd=0.075; finc=0.1;}
+    if(level==2) {bright_cmd=0.100; finc=0.2;}
+    if(level==3) {bright_cmd=0.125; finc=0.3;}
+    if(level==4) {bright_cmd=0.15; finc=0.4;}
+    if(level==5) {bright_cmd=0.2; finc=0.5;}
+    if(level==6) {bright_cmd=0.3; finc=0.6;}
+    if(level==7) {bright_cmd=0.5; finc=0.7;}
+    if(level==8) {bright_cmd=0.7; finc=1.0;}
+    if(level==9) {bright_cmd=1.0; finc=3.0;}
+    finc = 0.02;
+    
     bright=bright_cmd;      // TEST don't ramp      
   }
 
@@ -543,76 +511,29 @@ void loop() {
   if(mode==1){
     
     for(led=0;led<NUMLEDS;led++){
-      index2=index-led*1.5;
+      index2=index+led*4;
       while(index2>360)index2-=360;
       while(index2<0)index2+=360;
       color1 = scaleColor(getColor3(index2,1,1.0),bright);        // use base color
       strip.setPixelColor(led,color1);
     }
-    //color1 = getColor(0,1,0.1);        // mode marker
-    //strip.setPixelColor(0,color1);
-  }
-        
-  // ***************** mode 2, LUT flow **********************************************
-  if(mode==2){
-    strip.clear();                       
-
-    index3=index;
-              
-    // update the strip
-    for(led=0;led<NUMLEDS;led++){
-      index4 = index3-(led*1.5)*(float)NUMCOLORS/360;    
-      while(index4>=NUMCOLORS) index4 -= NUMCOLORS;
-      strip.setPixelColor(led, scaleColor(colorA[index4],bright) );
-    }
-
-    color1 = getColor(240,1,bright);        // mode marker
-    strip.setPixelColor(0,color1);
   }
 
-  // ***************** mode x, Show 7 Colors **************************
-  if(mode==-3){
-    strip.clear();
-
-    for(led=0;led<NUMLEDS;led++){
-      strip.setPixelColor(led, getColor(Hue[led],1,bright) );
-    }
-  }
-
-  // ***************** mode x, Scaled 7 Colors *************************
-  if(mode==-5){
-    strip.clear();
-
-    for(led=0;led<NUMLEDS;led++){
-//      strip.setPixelColor(led, getColor(Hue[led],1,bright) );
-//      strip.setPixelColor(led, colorA[led*NUMSHADES] );
-      strip.setPixelColor(led, scaleColor(colorA[led*NUMSHADES],bright) );
-    }
-  }
-
-  // ***************** mode 3, Shift 7 Colors *************************
-  if(mode==3){
-    strip.clear();
-
-    for(led=0;led<NUMLEDS;led++){
-//      strip.setPixelColor(led, getColor(Hue[led],1,bright) );
-//      strip.setPixelColor(led, colorA[led*NUMSHADES] );
-//      strip.setPixelColor(led, scaleColor(colorA[led*NUMSHADES],bright) );
-      strip.setPixelColor(led, scaleColor2(colorA[led*NUMSHADES],shift) );
-    }
-  }
-  
-  // ***************** mode 4:10, Show individual colors with delta  ****
-  if(mode>3){
-    strip.clear();
-
-    for(led=0;led<NUMLEDS;led++){
-      index2=Hue[mode-4]-3*HueDelta +led*HueDelta;
-      strip.setPixelColor(led, getColor(index2,1,bright) );
-    }
-  }
+  // ***************** mode 2 thru 18, light one fiber brightly **************************
+  if(mode>1){
     
-  
+    for(led=0;led<NUMLEDS;led++){
+      if(led==mode-2){
+        color1 = scaleColor(getColor3(0,1,1.0),bright);  
+        strip.setPixelColor(mode-2,color1);
+      }else{
+        color1 = scaleColor(getColor3(180,1,1.0),0.3*bright);  
+        strip.setPixelColor(led,color1);
+      }
+    }
+    
+  }
+
   // ************** end of modes ********************************
   
   // Update the strip
