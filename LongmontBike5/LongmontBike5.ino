@@ -116,9 +116,9 @@ int increment2 = 1;     // hue offset in rainbow mode
 unsigned long color1;   // hue (HSV) 
 float s1 = 1.0;         // saturation (HSV)
 
-#define MAXMODE 5  
-int mode = 2;           
-int old_mode = 1;
+#define MAXMODE 3  
+int mode = 1;           
+int old_mode = 2;
 #define MAXLEVEL 3  
 int level = 3;
 int old_level = 2;
@@ -269,7 +269,7 @@ rgb hsv2rgb(hsv in)
 // value = v range 0 to 1.0
 // and returns a 32 bit color code for the RGB values 
 // needed for the LED string: 0x00GGRRBB
-unsigned long getColor(float h, float s, float v){
+unsigned long getColorOld(float h, float s, float v){
   
   unsigned long temp;
   
@@ -289,6 +289,33 @@ unsigned long getColor(float h, float s, float v){
   
   return(temp);
 }
+//=================================================================================
+// This function takes floating point values for 
+// hue = h range 0 to 360
+// saturation = s range 0 to 1.0
+// value = v range 0 to 1.0
+// and returns a 32 bit color code for the RGB values 
+// needed for the LED string: 0x00GGRRBB
+// Use the Adafruit DotStar libraries as much as possible
+
+unsigned long getColor(float h, float s, float v){
+  
+  unsigned long color1;
+  unsigned long color2;
+  uint16_t hue;
+  uint8_t sat;
+  uint8_t val;
+
+  hue = floor(h*65535.0/360.0);
+  sat = floor(s*255);
+  val = floor(v*255);
+  
+  color1= strip.ColorHSV(hue,sat,val);
+  color2 = strip.gamma32(color1);
+
+  return(color2);
+}
+
 
 //================================================================================
 // This function takes floating point values from the accelerometer
