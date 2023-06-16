@@ -412,12 +412,12 @@ void setup() {
   a1.settings.zAccelEnabled = 1;
   a1.begin();
   
-  // Toggle menu switch on pins 4 and 7
-  pinMode(4,INPUT);
-  pinMode(7,INPUT);
-  // Second menu switch on pins 5 and 6
-  pinMode(5,INPUT);
-  pinMode(6,INPUT);
+  // upper menu switch on pins 4 and 5
+  pinMode(4,INPUT_PULLUP);
+  pinMode(5,INPUT_PULLUP);
+  // lower menu switch on pins 6 and 7
+  pinMode(6,INPUT_PULLUP);
+  pinMode(7,INPUT_PULLUP);
   // Pin 13 is onboard LED?
   pinMode(13,OUTPUT);
     
@@ -458,20 +458,32 @@ void loop() {
 
 
   // Read 4 toggle switch input, normally high, pulled low when toggle is active
+  //  4 red     upper switch down     mode -
+  //  5 blue    upper switch up       mode +
+  //  6 white   lower switch down     bright -
+  //  7 yellow  lower switch up       bright +
   buttons_in = 0;
-  if(digitalRead(4)==HIGH) buttons_in +=1;
-  if(digitalRead(7)==HIGH) buttons_in +=2;
-  if(digitalRead(5)==HIGH) buttons_in +=4;
-  if(digitalRead(6)==HIGH) buttons_in +=8;
+  if(digitalRead(4)==LOW) buttons_in +=1;
+  if(digitalRead(5)==LOW) buttons_in +=2;
+  if(digitalRead(6)==LOW) buttons_in +=4;
+  if(digitalRead(7)==LOW) buttons_in +=8;
   if(buttons_in != old_buttons){
     // got a new button press
     old_buttons = buttons_in;
 
     if(buttons_in == 1){
+      mode -=1;
+      if(mode<0) mode=MAXMODE;
+    }
+    if(buttons_in == 2){
       mode +=1;
       if(mode>MAXMODE) mode=0;
     }
-    if(buttons_in == 2){
+    if(buttons_in == 4){
+      level -=1;
+      if(level<0) level=MAXLEVEL;
+    }
+    if(buttons_in == 8){
       level +=1;
       if(level>MAXLEVEL) level=0;
     }
@@ -500,6 +512,8 @@ void loop() {
     finc = 0.02;
     
     bright=bright_cmd;      // TEST don't ramp      
+
+  
   }
 
   // ***************** mode 0, all RED for night light *******************************************************
