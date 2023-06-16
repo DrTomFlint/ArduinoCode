@@ -1,5 +1,5 @@
 /* =============================================================
- * AngelWings1
+ * AngelWings2
  * 
  * Adapted for Xbee #5, used to be globe with single halo loop.
  * Modified from the Longmont long-strip tests
@@ -16,7 +16,8 @@
  *  Piezo for tone on pin 8.
  *  Max4466 Mic Amp on A0 analog input for sound.
  *  
- *  2 menu switch inputs on pins 4 and 7.
+ *  2 menu switch inputs on pins 4 and 7.  Pins 5 and 6 for second switch.
+ *  
  *  
  *  LED Layout: 2 sets 0 to 20, and 21 to 41, plus one extra at 42.
  *  
@@ -28,6 +29,8 @@
  *  Add daisy-chain dotstar on end of fiber box, 22 Nov 2020
  *  Alter for long strip tests, 21 Dec 2020
  *  Modify for use with the Angel Wings, 15 June 2023
+ *  
+ *  AngelWings2 cuts all non-running code from AngelWings1
  *  
  ===============================================================*/
  
@@ -412,8 +415,12 @@ void setup() {
   // Toggle menu switch on pins 4 and 7
   pinMode(4,INPUT);
   pinMode(7,INPUT);
-
-  
+  // Second menu switch on pins 5 and 6
+  pinMode(5,INPUT);
+  pinMode(6,INPUT);
+  // Pin 13 is onboard LED?
+  pinMode(13,OUTPUT);
+    
 }
 
 //=================================================================================
@@ -454,6 +461,8 @@ void loop() {
   buttons_in = 0;
   if(digitalRead(4)==HIGH) buttons_in +=1;
   if(digitalRead(7)==HIGH) buttons_in +=2;
+  if(digitalRead(5)==HIGH) buttons_in +=4;
+  if(digitalRead(6)==HIGH) buttons_in +=8;
   if(buttons_in != old_buttons){
     // got a new button press
     old_buttons = buttons_in;
