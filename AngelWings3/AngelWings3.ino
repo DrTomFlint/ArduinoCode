@@ -75,8 +75,8 @@ int index3 = 0;   // indices 3,4 for new color methods
 int index4 = 0;
 int delay2 = 0;
 
-#define MAXMODE 2  
-int mode = 2;           
+#define MAXMODE 4  
+int mode = 1;           
 int old_mode = 0;
 
 #define MAXLEVEL 2  
@@ -386,7 +386,7 @@ void loop() {
     }
 
   }
-  // ***************** mode 1, flow *******************************************************
+  // ***************** mode 1, flow down *******************************************************
   if(mode==1){
     
     finc = 0.1;
@@ -406,8 +406,28 @@ void loop() {
     }
   }
 
-  // ***************** mode 2, flow with single fiber lit *******************************************************
+  // ***************** mode 2, flow up *******************************************************
   if(mode==2){
+    
+    finc = 0.1;
+
+    for(led=0;led<NUMLEDS;led++){
+      // only first 10 leds have optical fibers on them
+      if(led<10){
+        index2=index-led*7;
+        while(index2>360)index2-=360;
+        while(index2<0)index2+=360;
+        color1 = getColor3(index2,1,bright);       
+      }else{
+        // extra leds should be off
+        color1 = 0;
+      }
+      strip.setPixelColor(led,color1);
+    }
+  }
+
+  // ***************** mode 3, flow down with single fiber lit *******************************************************
+  if(mode==3){
 
     finc = 0.0333;
 
@@ -416,6 +436,29 @@ void loop() {
       index2=0;
       lit++;
       if(lit>9)lit=0;
+    }
+    for(led=0;led<NUMLEDS;led++){
+      // only 1 led is turned on
+      if(led==lit){
+        color1 = getColor3(index,1,bright);       
+      }else{
+        // extra leds should be off
+        color1 = 0;
+      }
+      strip.setPixelColor(led,color1);
+    }
+  }
+
+  // ***************** mode 4, flow up with single fiber lit *******************************************************
+  if(mode==4){
+
+    finc = 0.0333;
+
+    index2++;
+    if(index2>100){
+      index2=0;
+      lit--;
+      if(lit<0)lit=9;
     }
     for(led=0;led<NUMLEDS;led++){
       // only 1 led is turned on
