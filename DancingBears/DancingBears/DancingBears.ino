@@ -1,46 +1,27 @@
 /* =============================================================
- * AngelWings2
+ * DancingBears
+ * Base on Longmont Strip1
+ * Runs on 5V Arduino with 16 MHz clock (3.3v uses 8 MHz clock), 
+ * Xbee #2
  * 
- * Adapted for Xbee #5, used to be globe with single halo loop.
- * Modified from the Longmont long-strip tests
  *  
- *  LED string on SPI port pins 11 and 13 CLK and MOSI, pin 10 SPISEL 
- *   is an enable signal to the voltage translator TXB0104, must be high
- *   to send data to LEDs
- *  Accelerometer on SPI bus, pins 11,12,13, uses pin 10 SPISEL as 
- *   an active low select.
+ *  LED string on SPI port pins 11 and 13 CLK and MOSI.
  *  Xbee on the UART pins RXI TXD, 57600 baud to match bootloader, 
  *   DIO3 is tied to GRN (reset thru 0.1 uF cap), "digital line passing" 
  *   forwards DIO3 of master, which is tied to DTR so the Arduino IDE 
  *   can reset chip and start programming sequence.  
- *  Piezo for tone on pin 8.
- *  Max4466 Mic Amp on A0 analog input for sound.
  *  
- *  2 menu switch inputs on pins 4 and 7.  Pins 5 and 6 for second switch.
+ *  2 menu switch inputs on pins 5 and 7, active low
  *  
+ *  LED Layout: 86 Leds, only half are on bears, other half are between
  *  
- *  LED Layout: 2 sets 0 to 20, and 21 to 41, plus one extra at 42.
- *  
- *  Dr Tom Flint, 27 Jan 2019
- *  Rework for the 3.3 volt ProMini, 22 Feb 2019
- *  Add over-the-air setup, 1 Mar 2019
- *  Adapt for Globe BB-6a, 2 April 2019
- *  From BB7 hack a new Bike Lights version, 13 Nov 2020
- *  Add daisy-chain dotstar on end of fiber box, 22 Nov 2020
- *  Alter for long strip tests, 21 Dec 2020
- *  Modify for use with the Angel Wings, 15 June 2023
- *  Add 1 more LED for the Halo Hat, 9 Dec 2023
- *  
- *  AngelWings2 cuts all non-running code from AngelWings1
- *  AngelWings3 setup defaults with just 10 leds connected
  *  
  ===============================================================*/
  
 #include <Adafruit_DotStar.h>
 #include <SPI.h>              // spi for LED string
-#include "SparkFunLIS3DH.h"   // 3d accelerometer
 #include "Wire.h"             // i2c for accel
-#define NUMLEDS 17            // Number of LEDs in strip
+#define NUMLEDS 86            // Number of LEDs in strip
 #define TONETIME 200          // mSec for tone outputs
 
 Adafruit_DotStar strip = Adafruit_DotStar(NUMLEDS, DOTSTAR_BRG);
@@ -63,40 +44,33 @@ hsv colorIn;
 unsigned long color1;   // hue (HSV) 
 float bright = 0.0;      
 float bright_cmd = 0.0; 
+float bright2 = 0.0;
+unsigned int shift = 0;
 
 float findex = 120;       // Keep track of hue with a float, limit loop delay
+//float finc = 0.2;      // increment much less than 1.0
 float finc = 3.0;      // increment much less than 1.0
+float hueBase = 0;
 int led = 0;
-int lit = 0;
 float index = 0;
 float index2 = 0;
 
+//#define MAXMODE 10  
+#define MAXMODE 1  
+int mode = 0 ;           
+int old_mode = 1;
 
-int index3 = 0;   // indices 3,4 for new color methods
-int index4 = 0;
-int delay2 = 0;
-
-#define MAXMODE 2  
-int mode = 1;           
-int old_mode = 0;
-
-#define MAXLEVEL 2  
-int level = 2;
+#define MAXLEVEL 9  
+int level = 6;
 int old_level = 0;
 
-int buttons_in = 0;
-int old_buttons = 0;
+int buttons_in = 3;
+int old_buttons = 3;
 
 // Xbee
 int XbeeIn = 0;
 int XbeeOut = 0;
 int XbeeCount = 0;
-
-// Accelerometer
-LIS3DH a1( SPI_MODE, 10 );  // Use spi with pin10 as chip select
-float ax, ay, az;     // accelerometer readings
-float mx, my, mz;     // magnitude and limit to 0 to 1.0
-
 
 //=================================================================================
 // rgb values are doubles on scale 0 to 1.0
@@ -206,6 +180,69 @@ rgb hsv2rgb(hsv in)
     return out;     
 }
 
+
+//=================================================================================
+// This function takes floating point values for 
+// hue = h range 0 to 360
+// saturation = s range 0 to 1.0
+// value = v range 0 to 1.0
+// and returns a 32 bit color code for the RGB values 
+// needed for the LED string: 0x00GGRRBB
+unsigned long getColor(float h, float s, float v){
+  
+  unsigned long temp;
+  
+  colorIn.h = h;
+  colorIn.s = s;
+  colorIn.v = v;
+  colorOut = hsv2rgb(colorIn);
+  colorOut.r *= 255;
+  colorOut.g *= 255;
+  colorOut.b *= 255;
+
+  temp = colorOut.r;
+  temp = temp<<8;
+  temp = temp + colorOut.g;
+  temp = temp<<8;
+  temp = temp + colorOut.b;
+  
+  return(temp);
+}
+
+//=================================================================================
+// This function takes floating point values for 
+// hue = h range 0 to 360
+// saturation = s range 0 to 1.0
+// value = v range 0 to 1.0
+// and returns a 32 bit color code for the RGB values 
+// needed for the LED string: 0x00GGRRBB
+unsigned long getColor2(float h, float s, float v){
+  
+  unsigned long temp;
+  
+  colorIn.h = h;
+  colorIn.s = s;
+  colorIn.v = v;
+  colorOut = hsv2rgb(colorIn);
+  
+  // compensation for low end output
+  if(colorOut.r>0.005) colorOut.r = colorOut.r + 0.01*(1-colorOut.r)*(1-colorOut.r);
+  if(colorOut.g>0.005) colorOut.g = colorOut.g + 0.01*(1-colorOut.g)*(1-colorOut.g);
+  if(colorOut.b>0.005) colorOut.b = colorOut.b + 0.01*(1-colorOut.b)*(1-colorOut.b);
+
+  colorOut.r *= 255;
+  colorOut.g *= 255;
+  colorOut.b *= 255;
+
+  temp = colorOut.r;
+  temp = temp<<8;
+  temp = temp + colorOut.g;
+  temp = temp<<8;
+  temp = temp + colorOut.b;
+  
+  return(temp);
+}
+
 //=================================================================================
 // This function takes floating point values for 
 // hue = h range 0 to 360
@@ -234,29 +271,82 @@ unsigned long getColor3(float h, float s, float v){
 }
 
 //=================================================================================
+// Scale a color that is already in the unsigned long format by a floating point 
+// value to achieve dimming from a full brightness reference
+unsigned long scaleColor(unsigned long color, float bright){
+
+  unsigned long scolor = 0;
+  unsigned long red = 0;
+  unsigned long grn = 0;
+  unsigned long blu = 0;
+
+  // divide the unsigned long into 3 fields
+  blu=color & 0x000000FF;
+  grn=(color & 0x0000FF00)>>8;
+  red=(color & 0x00FF0000)>>16;
+
+  // compensation for non-linear output
+  if(bright<0.003){
+    bright=0;
+  }else{
+    bright = bright*bright+0.001;
+  }
+  if(bright>1)bright=1;
+  
+  // scale each color 
+  blu = bright * (float)blu;
+  grn = bright * (float)grn;
+  red = bright * (float)red;
+
+  // assemble back into an unsigned long
+  scolor = red;
+  scolor = scolor<<8;
+  scolor = scolor + grn;
+  scolor = scolor<<8;
+  scolor = scolor + blu;
+  
+  return(scolor);
+}
+
+//=================================================================================
+// Scale a color that is already in the unsigned long format by shifting
+// value to achieve dimming from a full brightness reference
+unsigned long scaleColor2(unsigned long color, int shift){
+
+  unsigned long scolor = 0;
+  unsigned long red = 0;
+  unsigned long grn = 0;
+  unsigned long blu = 0;
+
+  if(shift<0)return(0L);
+  if(shift>7)return(0L);
+
+  // divide the unsigned long into 3 fields
+  blu=color & 0x000000FF;
+  grn=(color & 0x0000FF00)>>8;
+  red=(color & 0x00FF0000)>>16;
+
+  // scale each color 
+  blu = blu>>shift;
+  grn = grn>>shift;
+  red = red>>shift;
+
+  // assemble back into an unsigned long
+  scolor = red;
+  scolor = scolor<<8;
+  scolor = scolor + grn;
+  scolor = scolor<<8;
+  scolor = scolor + blu;
+  
+  return(scolor);
+}
+//=================================================================================
 
 void setup() {
 
-  // Pin 10 is the SPISEL line, set it HIGH to use the LEDs or the Piezo, both are enabled
-  // thru the 3.3 to 5 volt level shifter.  Pin 10 LOW to use spi with the accelerometer.
-  pinMode(10,OUTPUT);
-  digitalWrite(10,LOW);
-
-  // Startup tone
-  digitalWrite(10,HIGH);
-  tone(8,440,TONETIME);
-  delay(TONETIME);
-  tone(8,880,TONETIME);
-  delay(TONETIME);
-  tone(8,1760,TONETIME);
-  delay(TONETIME);
-  digitalWrite(10,LOW);
-  
   // LED strip
-  digitalWrite(10,HIGH);
   strip.begin(); // Initialize pins for output
   strip.show();  // Turn all LEDs off ASAP
-  digitalWrite(10,LOW);
    
   // Xbee 
 //  Serial.begin(19200);   // Serial comms with the Xbee
@@ -267,38 +357,16 @@ void setup() {
 //  Serial.print("ProMini3: startup Ok");
   pinMode(7,OUTPUT);    // digital flag for timing on scope
   digitalWrite(7,LOW);
-  
-  // Accelerometer
-  a1.settings.adcEnabled = 0;
-  a1.settings.tempEnabled = 0;
-  a1.settings.accelSampleRate = 25;  // Hz.  Can be: 0,1,10,25,50,100,200,400,1600,5000 Hz
-  a1.settings.accelRange = 4;        // Max G force readable.  Can be: 2, 4, 8, 16
-  a1.settings.xAccelEnabled = 1;
-  a1.settings.yAccelEnabled = 1;
-  a1.settings.zAccelEnabled = 1;
-  a1.begin();
-  
-  // upper menu switch on pins 4 and 5
-  pinMode(4,INPUT_PULLUP);
-  pinMode(5,INPUT_PULLUP);
-  // lower menu switch on pins 6 and 7
-  pinMode(6,INPUT_PULLUP);
-  pinMode(7,INPUT_PULLUP);
-  // Pin 13 is onboard LED?
-  pinMode(13,OUTPUT);
     
+  // Toggle menu switch on pins 5 and 7
+  pinMode(5,INPUT);
+  pinMode(7,INPUT);
+  
 }
 
 //=================================================================================
 
 void loop() {
-
-  // Read the 3d accelerometer on the SPI
-  digitalWrite(4,HIGH);
-  ax = a1.readFloatAccelX();
-  ay = a1.readFloatAccelY();
-  az = a1.readFloatAccelZ();
-  digitalWrite(4,LOW);
 
   // Xbee comms
   if(Serial.available()>0){
@@ -307,141 +375,87 @@ void loop() {
     
     //Serial.print(XbeeOut);
 
-    if(XbeeIn == 1){
-      tone(8,440,TONETIME);
-      delay(TONETIME);
-    }
-    if(XbeeIn == 2){
-      tone(8,880,TONETIME);
-      delay(TONETIME);
-    }
-    if(XbeeIn == 3){
-      tone(8,1760,TONETIME);
-      delay(TONETIME);
-    }
+    // if(XbeeIn == 1){
+    //   tone(8,440,TONETIME);
+    //   delay(TONETIME);
+    // }
 
   }
 
+
   // Read 4 toggle switch input, normally high, pulled low when toggle is active
-  //  4 red     upper switch down     mode -
-  //  5 blue    upper switch up       mode +
-  //  6 white   lower switch down     bright -
-  //  7 yellow  lower switch up       bright +
   buttons_in = 0;
-  if(digitalRead(4)==LOW) buttons_in +=1;
-  if(digitalRead(5)==LOW) buttons_in +=2;
-  if(digitalRead(6)==LOW) buttons_in +=4;
-  if(digitalRead(7)==LOW) buttons_in +=8;
+  if(digitalRead(5)==HIGH) buttons_in +=1;
+  if(digitalRead(7)==HIGH) buttons_in +=2;
   if(buttons_in != old_buttons){
     // got a new button press
     old_buttons = buttons_in;
 
     if(buttons_in == 1){
-      mode -=1;
-      if(mode<0) mode=MAXMODE;
-    }
-    if(buttons_in == 2){
       mode +=1;
       if(mode>MAXMODE) mode=0;
     }
-    if(buttons_in == 4){
-      level -=1;
-      if(level<0) level=MAXLEVEL;
-    }
-    if(buttons_in == 8){
+    if(buttons_in == 2){
       level +=1;
       if(level>MAXLEVEL) level=0;
     }
   }
 
+
   // ******** mode ALL *******************************************************    
   if(mode >= 0){
     // update the hue index, first as float then as an int
-    findex -= finc;
+    findex += finc;
     if(findex>360) findex -= 360;
     if(findex<0) findex += 360;
     index = findex;
     
-    // level will control brightness
-    if(level==0) bright_cmd=0.3;
-    if(level==1) bright_cmd=0.6;
-    if(level==2) bright_cmd=1.0;
-    
-    bright=bright_cmd;  
-
+    // level will control brightness and speed of the spiral
+    if(level==0) {bright_cmd=0; shift=9; finc=0;}
+    if(level==1) {bright_cmd=0.075; shift=8; finc=0.1;}
+    if(level==2) {bright_cmd=0.100; shift=7; finc=0.2;}
+    if(level==3) {bright_cmd=0.125; shift=6; finc=0.3;}
+    if(level==4) {bright_cmd=0.15; shift=5; finc=0.4;}
+    if(level==5) {bright_cmd=0.2; shift=4; finc=0.5;}
+    if(level==6) {bright_cmd=0.3; shift=3; finc=0.6;}
+    if(level==7) {bright_cmd=0.5; shift=2; finc=0.7;}
+    if(level==8) {bright_cmd=0.7; shift=1; finc=1.0;}
+    if(level==9) {bright_cmd=1.0; shift=0; finc=3.0;}
   
+//    if(bright<bright_cmd)bright += 0.0005;   // range 0 to 1.0
+//    if(bright>bright_cmd)bright -=0.0005;
+    bright=bright_cmd;      // TEST don't ramp      
   }
 
   // ***************** mode 0, all RED for night light *******************************************************
   if(mode==0){
     
-    finc = 0.1;
-
     for(led=0;led<NUMLEDS;led++){
-      if(led<13){
-        color1 = getColor3(120,1,bright);      
-      }else{
-        color1 = 0;
-      }
+      index2=index-led*1.5;
+      while(index2>360)index2-=360;
+      while(index2<0)index2+=360;
+      color1 = getColor(120,1,bright);        // use base color
       strip.setPixelColor(led,color1);
     }
 
-  }
-
-  // ***************** mode 1, flow up *******************************************************
+//    color1 = getColor(120,1,0.1);        // mode marker
+//    strip.setPixelColor(0,color1);
+}
+  // ***************** mode 1, flow *******************************************************
   if(mode==1){
     
-    finc = 0.1;
-
     for(led=0;led<NUMLEDS;led++){
-      // only first 10 leds have optical fibers on them
-      if(led<12){
-        index2=index-led*7;
-        while(index2>360)index2-=360;
-        while(index2<0)index2+=360;
-        color1 = getColor3(index2,1,bright);       
-      }else{
-        if(led==12){
-          // halo
-//          color1 = getColor3(60,1,1.0);       
-          color1 = 0x00FFFFFF;       
-        }else{
-          // extra leds should be off
-          color1 = 0;
-        }
-      }
+      index2=index-led*1.5;
+      while(index2>360)index2-=360;
+      while(index2<0)index2+=360;
+      color1 = scaleColor(getColor3(index2,1,1.0),bright);        // use base color
       strip.setPixelColor(led,color1);
     }
+    //color1 = getColor(0,1,0.1);        // mode marker
+    //strip.setPixelColor(0,color1);
   }
-
-  // ***************** mode 2, flow up with single fiber lit *******************************************************
-  if(mode==2){
-
-    finc = 0.0333;
-
-    index2++;
-    if(index2>100){
-      index2=0;
-      lit--;
-      if(lit<0)lit=11;
-    }
-    for(led=0;led<NUMLEDS;led++){
-      // only 1 led is turned on
-      if(led==lit){
-        color1 = getColor3(index,1,bright);       
-      }else{
-        if(led==12){
-          // halo
-          color1 = getColor3(60,1,1.0);       
-        }else{
-          // extra leds should be off
-          color1 = 0;
-        }
-      }
-      strip.setPixelColor(led,color1);
-    }
-  }
-
+        
+  
   // ************** end of modes ********************************
   
   // Update the strip
