@@ -35,22 +35,26 @@ int led = 0;
 float index = 0;
 float index2 = 0;
 
-// location of lit bears
-int bear[5] = {0,5,10,15,20};
+// location of lit bears, 3 to 79 odd numbers only
+#define MAXBEARS 5
+//int bear[MAXBEARS] = {1,6,11,16,21};
+int bear[MAXBEARS] = {1,6+10,11+20,16+30,21+40};
 int i=0;  // index
-float bearBase = 0;
-float bearInc = 0.1;
+float bearCounter = 0;   // 
+float bearInc = 0.1;  // speed of animation
+int bearNum = 1;      // number of bears to light
+int bearSpace = 4;    // space between bears, even numbers only
 
-// hue for each bear
-unsigned long bhue[5] = {0,72,2*72,3*72,4*72};
+// hue for each bear, red yellow, green, blue, purple
+unsigned long bhue[5] = {120,80,0,240,180};
 
-//#define MAXMODE 10  
-#define MAXMODE 1  
+#define MAXMODE 3  
 int mode = 0 ;           
 int old_mode = 1;
+int delay_mode = 0;
 
-#define MAXLEVEL 9  
-int level = 3;
+#define MAXLEVEL 2  
+int level = 1;
 int old_level = 0;
 
 int buttons_in = 3;
@@ -135,6 +139,9 @@ void loop() {
   buttons_in = 0;
   if(digitalRead(5)==HIGH) buttons_in +=1;
   if(digitalRead(7)==HIGH) buttons_in +=2;
+  old_mode = mode;
+  old_level = level;
+
   if(buttons_in != old_buttons){
     // got a new button press
     old_buttons = buttons_in;
@@ -153,22 +160,15 @@ void loop() {
   // ******** mode ALL *******************************************************    
   if(mode >= 0){
     // update the hue index, first as float then as an int
-    findex += finc;
+    findex -= finc;
     if(findex>360) findex -= 360;
     if(findex<0) findex += 360;
     index = findex;
     
     // level will control brightness and speed of the bears
-    if(level==0) {bright_cmd=0; finc=0; bearInc = 0;}
-    if(level==1) {bright_cmd=0.075; finc=0.1; bearInc = 0.1;}
-    if(level==2) {bright_cmd=0.100; finc=0.2; bearInc = 0.1;}
-    if(level==3) {bright_cmd=0.125; finc=0.3; bearInc = 0.1;}
-    if(level==4) {bright_cmd=0.15; finc=0.4; bearInc = 0.2;}
-    if(level==5) {bright_cmd=0.2; finc=0.5; bearInc = 0.3;}
-    if(level==6) {bright_cmd=0.3; finc=0.6; bearInc = 0.4;}
-    if(level==7) {bright_cmd=0.5; finc=0.7; bearInc = 0.5;}
-    if(level==8) {bright_cmd=0.7; finc=1.0; bearInc = 0.6;}
-    if(level==9) {bright_cmd=1.0; finc=3.0; bearInc = 0.6;}
+    if(level==0) {bright_cmd=0.3; finc=0.1; bearInc = 0.05; bearNum = 5;}
+    if(level==1) {bright_cmd=0.5; finc=0.1; bearInc = 0.075; bearNum = 5;}
+    if(level==2) {bright_cmd=1.0; finc=0.1; bearInc = 0.1; bearNum = 5;}
 
 // Might ramp brightness  
 //    if(bright<bright_cmd)bright += 0.0005;   // range 0 to 1.0
@@ -179,29 +179,63 @@ void loop() {
   // ***************** mode 0, bears *******************************************************
   if(mode==0){
     
-    bearBase += bearInc;
-    if(bearBase>10){
+    if(old_mode!=0)  {
+      bear[0] = 9+30;
+      bear[1] = 17+30;
+      bear[2] = 25+30;
+      bear[3] = 33+30;
+      bear[4] = 41+30;
+    }
+
+    bearCounter += bearInc;
+    if(bearCounter>10){
       // time to move the bears
-      bearBase=0;
+      bearCounter=0;
       strip.clear();
-      for (i=0;i<5;i++){
-        bear[i]++;
-        if(bear[i]>84) bear[i]=0;
-        color0=getColor(bhue[i],1,bright);
+      for (i=0;i<MAXBEARS;i++){
+        bear[i]-=2;
+        if(bear[i]<3) bear[i]=79;
+        if(i<bearNum){
+          color0=getColor(bhue[i],1,bright);
+        }else{
+          color0=0;
+        }
         strip.setPixelColor(bear[i],color0);
       }
     }
   }
   
-  // ***************** mode 1, flow *******************************************************
+  // ***************** mode 1, rainbow bears *******************************************************
   if(mode==1){
-    
-    for(led=0;led<NUMLEDS;led++){
-      index2=index-led*1.5;
-      while(index2>360)index2-=360;
-      while(index2<0)index2+=360;
-      color0 = getColor(index2,1,bright);   
-      strip.setPixelColor(led,color0);
+
+    if(old_mode!=1)  {
+      bear[0] = 9+30;
+      bear[1] = 17+30;
+      bear[2] = 25+30;
+      bear[3] = 33+30;
+      bear[4] = 41+30;
+    }
+
+    bearCounter += bearInc;
+    if(bearCounter>10){
+      // time to move the bears
+      bearCounter=0;
+      strip.clear();
+      for (i=0;i<MAXBEARS;i++){
+        bear[i]-=2;
+        if(bear[i]<3) bear[i]=79;
+      }
+    }
+    for (i=0;i<MAXBEARS;i++){
+      if(i<bearNum){
+        index2=index-i*6;
+        while(index2>360)index2-=360;
+        while(index2<0)index2+=360;
+        color0 = getColor(index2,1,bright);   
+      }else{
+        color0=0;
+      }
+      strip.setPixelColor(bear[i],color0);
     }
   }
         
@@ -209,21 +243,42 @@ void loop() {
   // ***************** mode 2, all RED for night light *******************************************************
   if(mode==2){
     
-    for(led=0;led<NUMLEDS;led++){
-      index2=index-led*1.5;
-      while(index2>360)index2-=360;
-      while(index2<0)index2+=360;
-      color0 = getColor(120,1,bright);        // use base color
-      strip.setPixelColor(led,color0);
+    if(old_mode!=2){
+      strip.clear();
+      delay_mode=200;
+    }
+    
+    if(delay_mode>0){
+      delay_mode--;
+    }else{
+      for(led=0;led<NUMLEDS;led+=2){
+        color0 = getColor(120,1,bright);        
+        strip.setPixelColor(led,color0);
+      }
     }
 
-}
+  }
+  // ***************** mode 3, all white for maximum light *******************************************************
+  if(mode==3){
+    
+    if(old_mode!=3){
+      strip.clear();
+      delay_mode=200;
+    }
+    
+    if(delay_mode>0){
+      delay_mode--;
+    }else{
+      for(led=0;led<NUMLEDS;led+=1){
+        strip.setPixelColor(led,0x00FFFFFF);
+      }
+    }
+  }
   // ************** end of modes ********************************
   
   // Update the strip
-  digitalWrite(10,HIGH);    // SPI select for LEDs  
   strip.show();             // Refresh strip
-  digitalWrite(10,LOW);     // De-select LEDS, selects accelerometer
+  //digitalWrite(10,LOW);     // De-select LEDS, selects accelerometer
 
 }
 
