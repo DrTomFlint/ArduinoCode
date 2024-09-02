@@ -40,7 +40,7 @@
 #include <SPI.h>              // spi for LED string
 #include "SparkFunLIS3DH.h"   // 3d accelerometer
 #include "Wire.h"             // i2c for accel
-#define NUMLEDS 17            // Number of LEDs in strip
+#define NUMLEDS 18            // Number of LEDs in strip
 #define TONETIME 200          // mSec for tone outputs
 
 Adafruit_DotStar strip = Adafruit_DotStar(NUMLEDS, DOTSTAR_BRG);
@@ -240,23 +240,23 @@ void setup() {
   // Pin 10 is the SPISEL line, set it HIGH to use the LEDs or the Piezo, both are enabled
   // thru the 3.3 to 5 volt level shifter.  Pin 10 LOW to use spi with the accelerometer.
   pinMode(10,OUTPUT);
-  digitalWrite(10,LOW);
+  digitalWrite(10,HIGH);
 
   // Startup tone
-  digitalWrite(10,HIGH);
-  tone(8,440,TONETIME);
-  delay(TONETIME);
-  tone(8,880,TONETIME);
-  delay(TONETIME);
-  tone(8,1760,TONETIME);
-  delay(TONETIME);
-  digitalWrite(10,LOW);
+  // digitalWrite(10,HIGH);
+  // tone(8,440,TONETIME);
+  // delay(TONETIME);
+  // tone(8,880,TONETIME);
+  // delay(TONETIME);
+  // tone(8,1760,TONETIME);
+  // delay(TONETIME);
+  // digitalWrite(10,LOW);
   
   // LED strip
-  digitalWrite(10,HIGH);
+  // digitalWrite(10,HIGH);
   strip.begin(); // Initialize pins for output
   strip.show();  // Turn all LEDs off ASAP
-  digitalWrite(10,LOW);
+  // digitalWrite(10,LOW);
    
   // Xbee 
 //  Serial.begin(19200);   // Serial comms with the Xbee
@@ -269,14 +269,14 @@ void setup() {
   digitalWrite(7,LOW);
   
   // Accelerometer
-  a1.settings.adcEnabled = 0;
-  a1.settings.tempEnabled = 0;
-  a1.settings.accelSampleRate = 25;  // Hz.  Can be: 0,1,10,25,50,100,200,400,1600,5000 Hz
-  a1.settings.accelRange = 4;        // Max G force readable.  Can be: 2, 4, 8, 16
-  a1.settings.xAccelEnabled = 1;
-  a1.settings.yAccelEnabled = 1;
-  a1.settings.zAccelEnabled = 1;
-  a1.begin();
+  // a1.settings.adcEnabled = 0;
+  // a1.settings.tempEnabled = 0;
+  // a1.settings.accelSampleRate = 25;  // Hz.  Can be: 0,1,10,25,50,100,200,400,1600,5000 Hz
+  // a1.settings.accelRange = 4;        // Max G force readable.  Can be: 2, 4, 8, 16
+  // a1.settings.xAccelEnabled = 1;
+  // a1.settings.yAccelEnabled = 1;
+  // a1.settings.zAccelEnabled = 1;
+  // a1.begin();
   
   // upper menu switch on pins 4 and 5
   pinMode(4,INPUT_PULLUP);
@@ -294,33 +294,33 @@ void setup() {
 void loop() {
 
   // Read the 3d accelerometer on the SPI
-  digitalWrite(4,HIGH);
-  ax = a1.readFloatAccelX();
-  ay = a1.readFloatAccelY();
-  az = a1.readFloatAccelZ();
-  digitalWrite(4,LOW);
+  // digitalWrite(4,HIGH);
+  // ax = a1.readFloatAccelX();
+  // ay = a1.readFloatAccelY();
+  // az = a1.readFloatAccelZ();
+  // digitalWrite(4,LOW);
 
   // Xbee comms
-  if(Serial.available()>0){
-    XbeeIn = Serial.read();
-    XbeeOut = XbeeIn + 1;
+  // if(Serial.available()>0){
+  //   XbeeIn = Serial.read();
+  //   XbeeOut = XbeeIn + 1;
     
-    //Serial.print(XbeeOut);
+  //   //Serial.print(XbeeOut);
 
-    if(XbeeIn == 1){
-      tone(8,440,TONETIME);
-      delay(TONETIME);
-    }
-    if(XbeeIn == 2){
-      tone(8,880,TONETIME);
-      delay(TONETIME);
-    }
-    if(XbeeIn == 3){
-      tone(8,1760,TONETIME);
-      delay(TONETIME);
-    }
+  //   if(XbeeIn == 1){
+  //     tone(8,440,TONETIME);
+  //     delay(TONETIME);
+  //   }
+  //   if(XbeeIn == 2){
+  //     tone(8,880,TONETIME);
+  //     delay(TONETIME);
+  //   }
+  //   if(XbeeIn == 3){
+  //     tone(8,1760,TONETIME);
+  //     delay(TONETIME);
+  //   }
 
-  }
+  // }
 
   // Read 4 toggle switch input, normally high, pulled low when toggle is active
   //  4 red     upper switch down     mode -
@@ -367,8 +367,7 @@ void loop() {
     if(level==1) bright_cmd=0.6;
     if(level==2) bright_cmd=1.0;
     
-    bright=bright_cmd;  
-
+    bright=bright_cmd;    
   
   }
 
@@ -378,7 +377,7 @@ void loop() {
     finc = 0.1;
 
     for(led=0;led<NUMLEDS;led++){
-      if(led<13){
+      if((led>0)&&(led<13)){
         color1 = getColor3(120,1,bright);      
       }else{
         color1 = 0;
@@ -395,20 +394,14 @@ void loop() {
 
     for(led=0;led<NUMLEDS;led++){
       // only first 10 leds have optical fibers on them
-      if(led<12){
+      if((led>0)&&(led<12)){
         index2=index-led*7;
         while(index2>360)index2-=360;
         while(index2<0)index2+=360;
         color1 = getColor3(index2,1,bright);       
       }else{
-        if(led==12){
-          // halo
-//          color1 = getColor3(60,1,1.0);       
-          color1 = 0x00FFFFFF;       
-        }else{
-          // extra leds should be off
-          color1 = 0;
-        }
+        // extra leds should be off
+        color1 = 0;
       }
       strip.setPixelColor(led,color1);
     }
@@ -423,24 +416,40 @@ void loop() {
     if(index2>100){
       index2=0;
       lit--;
-      if(lit<0)lit=11;
+      if(lit<1)lit=12;
     }
-    for(led=0;led<NUMLEDS;led++){
+      for(led=0;led<NUMLEDS;led++){
       // only 1 led is turned on
       if(led==lit){
         color1 = getColor3(index,1,bright);       
       }else{
-        if(led==12){
-          // halo
-          color1 = getColor3(60,1,1.0);       
-        }else{
-          // extra leds should be off
-          color1 = 0;
-        }
+        // extra leds should be off
+        color1 = 0;
       }
       strip.setPixelColor(led,color1);
     }
   }
+
+  // ***************** mode 3, single led test mode *******************************************************
+  // if(mode==3){
+    
+  //   if(level!=old_level){
+  //     lit++;
+  //     if(lit>NUMLEDS) lit=0;
+  //   }
+  //   old_level=level;
+
+  //   for(led=0;led<NUMLEDS;led++){
+  //     if(led==lit){
+  //       color1 = getColor3(120,1,bright);      
+  //     }else{
+  //       color1 = 0;
+  //     }
+  //     strip.setPixelColor(led,color1);
+  //   }
+
+  // }
+
 
   // ************** end of modes ********************************
   

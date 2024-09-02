@@ -25,6 +25,7 @@ Adafruit_DotStar strip = Adafruit_DotStar(NUMLEDS, DOTSTAR_BRG);
 
 // Colors
 unsigned long color0;   // hue (HSV) 
+unsigned long color1;   // hue (HSV) 
 float bright = 0.0;      
 float bright_cmd = 0.0; 
 float bright2 = 0.0;
@@ -45,12 +46,21 @@ float bearInc = 0.1;  // speed of animation
 int bearNum = 1;      // number of bears to light
 int bearSpace = 4;    // space between bears, even numbers only
 
+// location of traces
+int trace[MAXBEARS] = {1,6+10,11+20,16+30,21+40};
+float traceBright[MAXBEARS] = {1,1,1,1,1};
+int j=0;
+float traceCounter = 0;
+float traceCounter2 = 0;
+float traceInc = 0.2;
+
+
 // hue for each bear, red yellow, green, blue, purple
 unsigned long bhue[5] = {120,80,0,240,180};
 
-#define MAXMODE 3  
-int mode = 0 ;           
-int old_mode = 1;
+#define MAXMODE 5  
+int mode = 1 ;           
+int old_mode = 9;
 int delay_mode = 0;
 
 #define MAXLEVEL 2  
@@ -73,6 +83,12 @@ int XbeeCount = 0;
 // and returns a 32 bit color code for the RGB values 
 // needed for the LED string: 0x00GGRRBB
 // Use the Adafruit DotStar libraries as much as possible
+//
+// XBEE LIST:
+// #2  00 13 A2 00 - 41 80 B0 28 Dancing Bears
+//
+// DrTomFlint 2 Sept 2024
+//=================================================================================
 
 unsigned long getColor(float h, float s, float v){
   
@@ -166,8 +182,8 @@ void loop() {
     index = findex;
     
     // level will control brightness and speed of the bears
-    if(level==0) {bright_cmd=0.3; finc=0.1; bearInc = 0.05; bearNum = 5;}
-    if(level==1) {bright_cmd=0.5; finc=0.1; bearInc = 0.075; bearNum = 5;}
+    if(level==0) {bright_cmd=0.3; finc=0.1; bearInc = 0.05; bearNum = 3;}
+    if(level==1) {bright_cmd=0.5; finc=0.1; bearInc = 0.075; bearNum = 4;}
     if(level==2) {bright_cmd=1.0; finc=0.1; bearInc = 0.1; bearNum = 5;}
 
 // Might ramp brightness  
@@ -274,6 +290,105 @@ void loop() {
       }
     }
   }
+  // ***************** mode 4, two fast bears 180 degrees apart *******************************************************
+  if(mode==4){
+
+    if(old_mode!=4)  {
+      bear[0] = 79;
+      bear[1] = 39;
+      bear[2] = 0;
+      bear[3] = 0;
+      bear[4] = 0;
+    }
+
+    bearCounter += 5*bearInc;
+    if(bearCounter>10){
+      // time to move the bears
+      bearCounter=0;
+      strip.clear();
+      for (i=0;i<MAXBEARS;i++){
+        bear[i]-=2;
+        if(bear[i]<3) bear[i]=79;
+      }
+    }
+    for (i=0;i<2;i++){
+      if(i<bearNum){
+        index2=index;
+        color0 = getColor(index2,1,bright);   
+      }else{
+        color0=0;
+      }
+      strip.setPixelColor(bear[i],color0);
+    }
+
+
+  }
+  // ***************** two bears 180 with tracers *******************************************************
+  if(mode==5){
+
+    if(old_mode!=5)  {
+      bear[0] = 79;
+      bear[1] = 39;
+      bear[2] = 0;
+      bear[3] = 0;
+      bear[4] = 0;
+    }
+
+    bearCounter += bearInc;
+    if(bearCounter>10){
+      // time to move the bears, negative marches forward
+      bearCounter=0;
+      for (i=0;i<MAXBEARS;i++){
+        bear[i]-=2;
+        if(bear[i]<3) bear[i]=79;
+        trace[i]=bear[i];
+        traceBright[i]=bright;
+      }
+    }
+    
+    traceCounter += traceInc;
+    if(traceCounter>1){
+      // time to move the traces, positive increment marches backward
+      traceCounter=0;
+      traceCounter2 += 1.0;
+      if(traceCounter2>10){
+        // reset trace to bear position and brightness
+        traceCounter2=0;
+        for (i=0;i<MAXBEARS;i++){
+          trace[i]=bear[i];
+          traceBright[i]=bright;
+        }
+
+      }
+      color0=0;
+      for (i=0;i<MAXBEARS;i++){
+        strip.setPixelColor(trace[i],color0);   // turn off old trace
+        trace[i]+=2;
+        if(trace[i]>79) trace[i]=3;
+        traceBright[i] *= 0.8;
+      }
+    }
+
+    // clear the strip then draw the current bears and traces
+    strip.clear();
+    for (i=0;i<2;i++){
+      if(i<bearNum){
+        index2=index-i*180;
+        while(index2>360)index2-=360;
+        while(index2<0)index2+=360;
+        color0 = getColor(index2,1,bright);   
+        color1 = getColor(index2,1,traceBright[i]);   
+      }else{
+        color0=0;
+        color1=0;
+      }
+      strip.setPixelColor(bear[i],color0);
+      strip.setPixelColor(trace[i],color1);
+    }
+
+
+  }
+
   // ************** end of modes ********************************
   
   // Update the strip
